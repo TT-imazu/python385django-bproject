@@ -1,0 +1,518 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>予算集計</title>
+    <style>
+        .container { display: flex; justify-content: space-between; height: 90vh; width: 100%; overflow: hidden; }
+        .side-table-container { width: 25%; border: 1px solid #ccc; box-sizing: border-box; }
+        .mini-table-container { width: 5%; border: 1px solid #ccc; box-sizing: border-box; }
+        .scrollable { width: 40%; border: 1px solid #ccc; overflow-y: scroll; box-sizing: border-box; }
+        table { width: 100%; border-collapse: collapse; }
+        table, th, td { border: 1px solid black; }
+        th, td { padding: 5px; text-align: center; }
+        .highlight { background-color: yellow; }
+        .blue-highlight { background-color: #cfdff3; }
+        .blue2-highlight { background-color: #cff3d5; }
+        .text-right { text-align: right; }
+        .text-left { text-align: left; }
+        input[type="number"] { width: 60px; }
+        .add-button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            text-align: center;
+            display: inline-block;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .no-border td, .no-border th {
+            border-left: none;
+            border-right: none;
+        }
+        /* アコーディオン用に隠すときに使うクラス */
+        .hidden { display: none; }
+        .accordion-toggle {
+            cursor: pointer;
+            background-color: #ddd;
+        }
+    </style>
+</head>
+<body>
+
+<!-- 年月 & 口座選択フォーム -->
+<form method="POST" action="{% url 'sortbank' %}">
+    {% csrf_token %}
+    <label>表示年月 (YYYYMM): </label>
+    <input type="text" name="year_month" value="{{ year_month }}">
+    
+    <label>口座コード:</label>
+    <select name="account_code_id">
+        <option value="">-- 未選択 --</option>
+        {% for ac in account_codes %}
+            <option value="{{ ac.id }}"
+                {% if selected_account_code and ac.id == selected_account_code.id %}
+                    selected
+                {% endif %}
+            >
+                {{ ac.bank_code }} / {{ ac.deposit_type }} / {{ ac.account_number }}
+            </option>
+        {% endfor %}
+    </select>
+
+    <button type="submit">変更</button>
+</form>
+
+<hr>
+
+<div class="container">
+
+    <!-- 左のテーブル（仕訳データのサンプル） -->
+    <div class="side-table-container">
+        <h3>仕訳データ (例)</h3>
+        <table>
+            <tr>
+                <th>日付</th><th>摘要</th><th>金額</th><th>連結</th>
+            </tr>
+            <tr><td>--</td><td>--</td><td>--</td><td>--</td></tr>
+        </table>
+    </div>
+
+    <div class="mini-table-container">
+        <h3>連結</h3>
+        <table>
+            <tr><th>連結</th></tr>
+            <tr><td>&nbsp;</td></tr>
+        </table>
+    </div>
+
+    <!-- 真ん中のスクロール可能なテーブル -->
+    <div class="scrollable">
+        <!-- 予算データの保存フォーム (既存データの更新・新規追加) -->
+        <form method="post" action="{% url 'sortbank' %}">
+            {% csrf_token %}
+            
+            <!-- 選択中の year_month と account_code_id を持たせる -->
+            <input type="hidden" name="year_month" value="{{ year_month }}">
+            <input type="hidden" name="account_code_id" value="{% if selected_account_code %}{{ selected_account_code.id }}{% endif %}">
+            
+            {% for dr, data in budget_data.items %}
+            <h2 id="date_range_{{ dr.id }}"> {{ dr.name }} </h2>
+            <table>
+                <tr>
+                    <td colspan="2">前月残高</td>
+                    <td class="text-right">{{ data.prev_balance }}</td>
+                    <td colspan="2">&nbsp;</td>
+                </tr>
+
+                <!-- 入金 -->
+                <tr class="highlight no-border">
+                    <th colspan="3" class="text-right">= 入 金 =</th>
+                    <th colspan="2">
+                        <button
+                            type="button"
+                            class="add-button"
+                            onclick="addBudgetItem('income', '{{ dr.id }}', '{{ year_month }}')"
+                        >新規追加</button>
+                    </th>
+                </tr>
+                <tr class="highlight">
+                    <th>相手先</th>
+                    <th>並替1</th>
+                    <th>並替2</th>
+                    <th>見込</th>
+                    <th>実際</th>
+                </tr>
+
+                <!-- 連携番号なし(入金) -->
+                {% for item in data.items.入金|dictsort:"sort_no1" %}
+                    {% if not item.connected_number %}
+                    <tr>
+                        <td class="text-left">{{ item.item_name }}</td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no1_{{ item.id }}"
+                                   value="{{ item.sort_no1 }}"
+                                   min="0" max="99" />
+                        </td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no2_{{ item.id }}"
+                                   value="{{ item.sort_no2 }}"
+                                   min="0" max="999" />
+                        </td>
+                        <td class="text-right">
+                            <input type="number"
+                                   name="default_amount_{{ item.id }}"
+                                   value="{{ item.default_amount }}">
+                        </td>
+                        <td class="text-right">{{ item.amount }}</td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+
+                <!-- 連携番号あり(入金)をアコーディオン表示 -->
+                <tr class="accordion-toggle"
+                    onclick="toggleAccordion('accordion_in_{{ dr.id }}')">
+                    <td colspan="5">
+                        連携されたデータ - クリックで展開
+                    </td>
+                </tr>
+                <tbody id="accordion_in_{{ dr.id }}" class="hidden">
+                {% for item in data.items.入金|dictsort:"sort_no1" %}
+                    {% if item.connected_number %}
+                    <tr>
+                        <td class="text-left">{{ item.item_name }}</td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no1_{{ item.id }}"
+                                   value="{{ item.sort_no1 }}"
+                                   min="0" max="99" />
+                        </td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no2_{{ item.id }}"
+                                   value="{{ item.sort_no2 }}"
+                                   min="0" max="999" />
+                        </td>
+                        <td class="text-right">
+                            <input type="number"
+                                   name="default_amount_{{ item.id }}"
+                                   value="{{ item.default_amount }}">
+                        </td>
+                        <td class="text-right">{{ item.amount }}</td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+                </tbody>
+
+                <tr class="highlight">
+                    <td>=入金合計=</td>
+                    <td class="text-right" colspan="4">{{ data.income_total }}</td>
+                </tr>
+
+                <!-- 出金 -->
+                <tr class="blue-highlight"><th colspan="5">= 出 金 =</th></tr>
+                <!-- 自動引落 -->
+                <tr class="no-border">
+                    <th colspan="3" class="text-right">自動引落</th>
+                    <th colspan="2">
+                        <button
+                            type="button"
+                            class="add-button"
+                            onclick="addBudgetItem('auto', '{{ dr.id }}', '{{ year_month }}')"
+                        >新規追加</button>
+                    </th>
+                </tr>
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>並替1</th>
+                    <th>並替2</th>
+                    <th>見込</th>
+                    <th>実際</th>
+                </tr>
+
+                <!-- 連携番号なし(自動引落) -->
+                {% for item in data.items.自動引落|dictsort:"sort_no1" %}
+                    {% if not item.connected_number %}
+                    <tr>
+                        <td class="text-left">{{ item.item_name }}</td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no1_{{ item.id }}"
+                                   value="{{ item.sort_no1 }}">
+                        </td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no2_{{ item.id }}"
+                                   value="{{ item.sort_no2 }}">
+                        </td>
+                        <td class="text-right">
+                            <input type="number"
+                                   name="default_amount_{{ item.id }}"
+                                   value="{{ item.default_amount }}">
+                        </td>
+                        <td class="text-right">{{ item.amount }}</td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+
+                <!-- 連携番号あり(自動引落) -->
+                <tr class="accordion-toggle"
+                    onclick="toggleAccordion('accordion_auto_{{ dr.id }}')">
+                    <td colspan="5">
+                        連携されたデータ - クリックで展開
+                    </td>
+                </tr>
+                <tbody id="accordion_auto_{{ dr.id }}" class="hidden">
+                {% for item in data.items.自動引落|dictsort:"sort_no1" %}
+                    {% if item.connected_number %}
+                    <tr>
+                        <td class="text-left">{{ item.item_name }}</td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no1_{{ item.id }}"
+                                   value="{{ item.sort_no1 }}">
+                        </td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no2_{{ item.id }}"
+                                   value="{{ item.sort_no2 }}">
+                        </td>
+                        <td class="text-right">
+                            <input type="number"
+                                   name="default_amount_{{ item.id }}"
+                                   value="{{ item.default_amount }}">
+                        </td>
+                        <td class="text-right">{{ item.amount }}</td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+                </tbody>
+
+                <tr class="blue2-highlight">
+                    <td>自動引落合計</td>
+                    <td class="text-right" colspan="4">{{ data.expense_auto_total }}</td>
+                </tr>
+
+                <!-- 個別支払 -->
+                <tr class="no-border">
+                    <th colspan="3" class="text-right">個別支払</th>
+                    <th colspan="2">
+                        <button
+                            type="button"
+                            class="add-button"
+                            onclick="addBudgetItem('individual', '{{ dr.id }}', '{{ year_month }}')"
+                        >新規追加</button>
+                    </th>
+                </tr>
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>並替1</th>
+                    <th>並替2</th>
+                    <th>見込</th>
+                    <th>実際</th>
+                </tr>
+
+                <!-- 連携番号なし(個別支払) -->
+                {% for item in data.items.個別支払|dictsort:"sort_no1" %}
+                    {% if not item.connected_number %}
+                    <tr>
+                        <td class="text-left">{{ item.item_name }}</td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no1_{{ item.id }}"
+                                   value="{{ item.sort_no1 }}">
+                        </td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no2_{{ item.id }}"
+                                   value="{{ item.sort_no2 }}">
+                        </td>
+                        <td class="text-right">
+                            <input type="number"
+                                   name="default_amount_{{ item.id }}"
+                                   value="{{ item.default_amount }}">
+                        </td>
+                        <td class="text-right">{{ item.amount }}</td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+
+                <!-- 連携番号あり(個別支払) -->
+                <tr class="accordion-toggle"
+                    onclick="toggleAccordion('accordion_ind_{{ dr.id }}')">
+                    <td colspan="5">
+                        連携されたデータ - クリックで展開
+                    </td>
+                </tr>
+                <tbody id="accordion_ind_{{ dr.id }}" class="hidden">
+                {% for item in data.items.個別支払|dictsort:"sort_no1" %}
+                    {% if item.connected_number %}
+                    <tr>
+                        <td class="text-left">{{ item.item_name }}</td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no1_{{ item.id }}"
+                                   value="{{ item.sort_no1 }}">
+                        </td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no2_{{ item.id }}"
+                                   value="{{ item.sort_no2 }}">
+                        </td>
+                        <td class="text-right">
+                            <input type="number"
+                                   name="default_amount_{{ item.id }}"
+                                   value="{{ item.default_amount }}">
+                        </td>
+                        <td class="text-right">{{ item.amount }}</td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+                </tbody>
+
+                <!-- 出金合計、残高見込 -->
+                <tr class="blue2-highlight">
+                    <td>個別支払合計</td>
+                    <td class="text-right" colspan="4">{{ data.expense_individual_total }}</td>
+                </tr>
+                <tr class="blue-highlight">
+                    <td>=出金合計=</td>
+                    <td class="text-right" colspan="4">{{ data.total_expense }}</td>
+                </tr>
+                <tr class="blue-highlight">
+                    <td colspan="3">{{ dr.name }} 残高見込</td>
+                    <td class="text-right" colspan="2">{{ data.new_balance }}</td>
+                </tr>
+            </table>
+            {% endfor %}
+
+            <button type="submit">保存</button>
+        </form>
+    </div>
+
+    <div class="mini-table-container">
+        <h3>連結</h3>
+        <table>
+            <tr><th>連結</th></tr>
+            <tr><td>&nbsp;</td></tr>
+        </table>
+    </div>
+
+    <!-- 右のテーブル（銀行データ） -->
+    <div class="side-table-container">
+        <h3>銀行データ</h3>
+        <table>
+            <tr><th>日付</th><th>摘要</th><th>金額</th><th>連結</th></tr>
+            {% for bank in bank_data %}
+            <tr draggable="true"
+                ondragstart="dragStart(event)"
+                data-id="{{ bank.id }}"
+                data-name="{{ bank.item_name }}"
+                data-amount="{{ bank.amount }}"
+                data-transaction-type="{{ bank.transaction_type }}">
+                <td>{{ bank.date }}{{ bank.transaction_type }}</td>
+                <td>{{ bank.item_name }}</td>
+                <td>{{ bank.amount }}</td>
+                <td>&nbsp;</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+
+<script>
+// ----------------------
+// CSRFトークンの取得
+// ----------------------
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+
+// ----------------------
+// ドラッグ&ドロップ関連
+// ----------------------
+function dragStart(event) {
+    const row = event.currentTarget;
+    const transactionType = row.dataset.transactionType || "出金";
+
+    event.dataTransfer.setData("id", row.dataset.id);
+    event.dataTransfer.setData("name", row.dataset.name);
+    event.dataTransfer.setData("amount", row.dataset.amount);
+    event.dataTransfer.setData("transaction_type", transactionType);
+}
+
+function allowDrop(event) {
+    event.preventDefault();
+}
+
+function drop(event, dateRangeId, itemType) {
+    event.preventDefault();
+    const itemId = event.dataTransfer.getData("id");
+    const itemName = event.dataTransfer.getData("name");
+    const amount = event.dataTransfer.getData("amount");
+    const transactionType = event.dataTransfer.getData("transaction_type") || "出金";
+
+    const isIncome = (transactionType === "入金");
+    const isValidDrop = (isIncome && itemType === "income") ||
+                        (!isIncome && (itemType === "auto" || itemType === "individual"));
+    if (!isValidDrop) {
+        alert(`この取引は追加できません。取引種別: ${transactionType}`);
+        return;
+    }
+
+    const tbody = document.getElementById(`${itemType}_items_${dateRangeId}`);
+    const newRow = tbody.insertRow();
+    newRow.innerHTML = `
+        <td class="text-left">${itemName}</td>
+        <td class="text-right"><input type="number" value="${amount}" class="text-right"></td>
+        <td class="text-right">${amount}</td>
+        <td>&nbsp;</td>
+    `;
+
+    // Ajaxでサーバーに登録 (例)
+    fetch("{% url 'addbudget_item' %}", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrftoken
+        },
+        body: JSON.stringify({
+            item_id: itemId,
+            item_name: itemName,
+            amount: amount,
+            daterange_id: dateRangeId,
+            itemtype: itemType,
+            year_month: "{{ year_month }}",
+            account_code_id: "{{ selected_account_code.id|default_if_none:'' }}"
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === "success") {
+            console.log("保存成功:", data.message);
+        } else {
+            console.error("保存エラー:", data.message);
+        }
+    })
+    .catch(error => console.error("通信エラー:", error));
+}
+
+// ----------------------
+// 新規追加ボタン
+// ----------------------
+function addBudgetItem(itemType, dateRangeId, yearMonth) {
+    // TODO: 新規項目用の行を挿入するなどの実装を加える
+    alert("新規追加フォームをここで追加する処理を実装してください。");
+}
+
+// ----------------------
+// アコーディオン切替
+// ----------------------
+function toggleAccordion(id) {
+    const block = document.getElementById(id);
+    if (block.classList.contains('hidden')) {
+        block.classList.remove('hidden');
+    } else {
+        block.classList.add('hidden');
+    }
+}
+</script>
+</body>
+</html>

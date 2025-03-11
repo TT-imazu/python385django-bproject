@@ -1,0 +1,833 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>予算集計</title>
+    <style>
+        /* 全体のレイアウトをグリッドに変更し、バランス調整 */
+        .container {
+            display: grid;
+            grid-template-columns: 0.4fr 0.2fr 0.4fr; /* 左:やや狭め, 中央:広め, 右:やや狭め */
+            gap: 20px;
+            width: 100%;
+            min-height: 90vh;
+            margin: 0 auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* サイドテーブルの共通デザイン */
+        .side-table-container {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            background-color: #fff; 
+            padding: 10px;
+        }
+
+        /* 中央のテーブルエリア（スクロール可能） */
+        .scrollable {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            background-color: #f9f9f9;
+            padding: 10px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        /* 小さいテーブルのコンテナ（今回の例では使っていないなら削除可） */
+        .mini-table-container {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            background-color: #fff;
+            padding: 10px;
+        }
+
+        /* テーブルの共通スタイル */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+
+        /* 強調表示(ハイライト)の色を少し抑えめに */
+        .highlight {
+            background-color: #fffae0; /* 薄い黄色 */
+        }
+        .blue-highlight {
+            background-color: #eaf3ff; /* 薄い水色 */
+        }
+        .blue2-highlight {
+            background-color: #e0f9e0; /* 薄い緑色 */
+        }
+
+        /* ボタンのスタイルを整える */
+        .add-button {
+            background-color: #007BFF; 
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            margin: 4px 2px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .add-button:hover {
+            background-color: #0056b3;
+        }
+
+        /* 数字用の右寄せなど */
+        .text-right {
+            text-align: right;
+        }
+        .text-left {
+            text-align: left;
+        }
+        input[type="number"] {
+            width: 80px;
+        }
+
+        /* ボーダーを非表示にするスタイル */
+        .no-border td, .no-border th {
+            border: none;
+        }
+
+        /* アコーディオンのヘッダー部分 */
+        .accordion-header {
+            cursor: pointer;
+            background-color: #e1e1e1;
+            font-weight: bold;
+        }
+        .accordion-header:hover {
+            background-color: #ccc;
+        }
+        .accordion-icon {
+            float: right;
+            margin-right: 10px;
+        }
+        /* 折りたたみ用 */
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<!-- 年月 & 口座選択フォーム -->
+<form method="POST" action="{% url 'addbudget' %}">
+    {% csrf_token %}
+    <label>表示年月 (YYYYMM): </label>
+    <input type="text" name="year_month" value="{{ year_month }}">
+
+    <label>口座コード:</label>
+    <select name="account_code_id">
+        <option value="">-- 未選択 --</option>
+        {% for ac in account_codes %}
+            <option value="{{ ac.id }}"
+                {% if selected_account_code and ac.id == selected_account_code.id %}
+                    selected
+                {% endif %}
+            >
+                {{ ac.bank_code }} / {{ ac.deposit_type }} / {{ ac.account_number }}
+            </option>
+        {% endfor %}
+    </select>
+
+    <!-- ★ ここに DateRange の選択を追加 -->
+    <label>期間 (DateRange):</label>
+    <select name="daterange_id">
+        <option value="">-- 未選択 --</option>
+        {% for dr in date_ranges_all %}
+            <option value="{{ dr.id }}"
+                {% if user_settings.selected_daterange and dr.id == user_settings.selected_daterange.id %}
+                    selected
+                {% endif %}
+            >
+                {{ dr.name }} ({{ dr.start_day }}～{{ dr.end_day }})
+            </option>
+        {% endfor %}
+    </select>
+
+    <!-- 日付の上限 (end_day) -->
+    <label>日付指定:</label>
+    <input type="number" name="end_day" value="{{ user_settings.end_day }}" style="width:80px;">
+
+    <!-- 連結フラグ (connectflag) -->
+    <label>連結ありのみ?</label>
+    <input type="checkbox" name="connectflag" value="1"
+        {% if user_settings.connectflag %} checked {% endif %}>
+
+    <button type="submit">変更</button>
+</form>
+
+<button onclick="openAllAccordions()">すべて開く</button>
+<button onclick="closeAllAccordions()">すべて閉じる</button>
+
+<hr>
+
+<div class="container">
+
+    <!-- 左カラム (スクロール可能なテーブル) -->
+    <div class="scrollable scrollable-left">
+        <!-- 予算データの保存フォーム (既存データの更新・新規追加) -->
+        <form method="post" action="{% url 'addbudget' %}">
+            {% csrf_token %}
+            <!-- year_month と account_code_id を hidden で再度持たせる -->
+            <input type="hidden" name="year_month" value="{{ year_month }}">
+            <input type="hidden" name="account_code_id" value="{% if selected_account_code %}{{ selected_account_code.id }}{% endif %}">
+
+            <table>
+                <tr>
+                    <td colspan="2">前月残高</td>
+                    <td class="text-right">{{ initial_prev_balance }}</td>
+                </tr>
+            </table>
+            <a>&nbsp;</a>
+
+            {% for dr, data in budget_data.items %}
+            <h2 id="date_range_{{ dr.id }}">{{ dr.name }}</h2>
+            <table>
+                <!-- 入金 -->
+                <tr class="highlight no-border">
+                    <th colspan="6" class="text-left">= 入 金 =</th>
+                </tr>
+                <tr class="highlight">
+                    <th>相手先</th>
+                    <th>sort_no1</th>
+                    <th>sort_no2</th>
+                    <th>見込</th>
+                    <th>実際</th>
+                    <th>連結</th>
+                </tr>
+
+                <!-- 未連携(connected_numberなし)データ -->
+                <tbody id="income_items_{{ dr.id }}"
+                       ondrop="drop(event, '{{ dr.id }}', 'income')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="6" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    {% with unconnected_income=data.items.入金 %}
+                    {% for item in unconnected_income %}
+                    {% if not item.connected_number %}
+                    <tr>
+                        <td class="text-left">{{ item.item_name }}</td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no1_{{ item.id }}"
+                                   value="{{ item.sort_no1 }}"
+                                   style="width:50px;">
+                        </td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no2_{{ item.id }}"
+                                   value="{{ item.sort_no2 }}"
+                                   style="width:50px;">
+                        </td>
+                        <td class="text-right">
+                            <input type="number"
+                                   name="default_amount_{{ item.id }}"
+                                   value="{{ item.default_amount }}"
+                                   class="text-right">
+                        </td>
+                        <td class="text-right">0</td>
+                        <td>&nbsp;</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                    {% endwith %}
+                </tbody>
+                <tr class="accordion-header" onclick="toggleAccordion('connected_income_{{ dr.id }}')">
+                    <td colspan="6" class="text-left">
+                        連携済データ(入金)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_income_{{ dr.id }}" class="hidden">
+                    {% for item in data.items.入金 %}
+                    {% if item.connected_number %}
+                    <tr>
+                        <td class="text-left">{{ item.item_name }}</td>
+                        <td>{{ item.sort_no1 }}</td>
+                        <td>{{ item.sort_no2 }}</td>
+                        <td class="text-right">{{ item.default_amount }}</td>
+                        <td class="text-right">{{ item.amount }}</td>
+                        <td>
+                            <button class="unlink-button" onclick="unlinkConnection('{{ item.connected_number }}')">連結解除</button>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+                <tr class="highlight">
+                    <td>=入金合計=</td>
+                    <td colspan="4" class="text-right">{{ data.income_total }}</td>
+                    <td>&nbsp;</td>
+                </tr>
+
+                <!-- 出金 (自動引落, 個別支払) -->
+                <tr class="blue-highlight">
+                    <th colspan="6" class="text-left">= 出 金 =</th>
+                </tr>
+
+                <!-- 自動引落 -->
+                <tr class="no-border">
+                    <th colspan="6" class="text-left">自動引落</th>
+                </tr>
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>sort_no1</th>
+                    <th>sort_no2</th>
+                    <th>見込</th>
+                    <th>実際</th>
+                    <th>連結</th>
+                </tr>
+                <tbody id="auto_items_{{ dr.id }}"
+                       ondrop="drop(event, '{{ dr.id }}', 'auto')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="6" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    {% for item in data.items.自動引落 %}
+                    {% if not item.connected_number %}
+                    <tr>
+                        <td class="text-left">{{ item.item_name }}</td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no1_{{ item.id }}"
+                                   value="{{ item.sort_no1 }}"
+                                   style="width:50px;">
+                        </td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no2_{{ item.id }}"
+                                   value="{{ item.sort_no2 }}"
+                                   style="width:50px;">
+                        </td>
+                        <td class="text-right">
+                            <input type="number"
+                                   name="default_amount_{{ item.id }}"
+                                   value="{{ item.default_amount }}"
+                                   class="text-right">
+                        </td>
+                        <td class="text-right">0</td>
+                        <td>&nbsp;</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+                <tr class="accordion-header" onclick="toggleAccordion('connected_auto_{{ dr.id }}')">
+                    <td colspan="6" class="text-left">
+                        連携済データ(自動引落)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_auto_{{ dr.id }}" class="hidden">
+                    {% for item in data.items.自動引落 %}
+                    {% if item.connected_number %}
+                    <tr>
+                        <td class="text-left">{{ item.item_name }}</td>
+                        <td>{{ item.sort_no1 }}</td>
+                        <td>{{ item.sort_no2 }}</td>
+                        <td class="text-right">{{ item.default_amount }}</td>
+                        <td class="text-right">{{ item.amount }}</td>
+                        <td>
+                            <button class="unlink-button" onclick="unlinkConnection('{{ item.connected_number }}')">連結解除</button>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+                <tr class="blue2-highlight">
+                    <td>自動引落合計</td>
+                    <td colspan="4" class="text-right">{{ data.expense_auto_total }}</td>
+                    <td>&nbsp;</td>
+                </tr>
+
+                <!-- 個別支払 -->
+                <tr class="no-border">
+                    <th colspan="6" class="text-left">個別支払</th>
+                </tr>
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>sort_no1</th>
+                    <th>sort_no2</th>
+                    <th>見込</th>
+                    <th>実際</th>
+                    <th>連結</th>
+                </tr>
+                <tbody id="individual_items_{{ dr.id }}"
+                       ondrop="drop(event, '{{ dr.id }}', 'individual')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="6" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    {% for item in data.items.個別支払 %}
+                    {% if not item.connected_number %}
+                    <tr>
+                        <td class="text-left">{{ item.item_name }}</td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no1_{{ item.id }}"
+                                   value="{{ item.sort_no1 }}"
+                                   style="width:50px;">
+                        </td>
+                        <td>
+                            <input type="number"
+                                   name="sort_no2_{{ item.id }}"
+                                   value="{{ item.sort_no2 }}"
+                                   style="width:50px;">
+                        </td>
+                        <td class="text-right">
+                            <input type="number"
+                                   name="default_amount_{{ item.id }}"
+                                   value="{{ item.default_amount }}"
+                                   class="text-right">
+                        </td>
+                        <td class="text-right">0</td>
+                        <td>&nbsp;</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+                <tr class="accordion-header" onclick="toggleAccordion('connected_individual_{{ dr.id }}')">
+                    <td colspan="6" class="text-left">
+                        連携済データ(個別支払)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_individual_{{ dr.id }}" class="hidden">
+                    {% for item in data.items.個別支払 %}
+                    {% if item.connected_number %}
+                    <tr>
+                        <td class="text-left">{{ item.item_name }}</td>
+                        <td>{{ item.sort_no1 }}</td>
+                        <td>{{ item.sort_no2 }}</td>
+                        <td class="text-right">{{ item.default_amount }}</td>
+                        <td class="text-right">{{ item.amount }}</td>
+                        <td>
+                                <button class="unlink-button" onclick="unlinkConnection('{{ item.connected_number }}')">連結解除</button>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+
+                <tr class="blue-highlight">
+                    <td>=出金合計=</td>
+                    <td colspan="4" class="text-right">{{ data.total_expense }}</td>
+                    <td>&nbsp;</td>
+                </tr>
+                <tr class="blue-highlight">
+                    <td colspan="2">{{ dr.name }} 残高見込</td>
+                    <td colspan="3" class="text-right">{{ data.new_balance }}</td>
+                    <td>&nbsp;</td>
+                </tr>
+            </table>
+
+            <!-- DateRangeごとに新規追加ボタン (入金/自動引落/個別支払) -->
+            <button
+                type="button"
+                class="add-button"
+                onclick="addBudgetItem('income', '{{ dr.id }}', '{{ year_month }}')">
+                入金 新規追加
+            </button>
+
+            <button
+                type="button"
+                class="add-button"
+                onclick="addBudgetItem('auto', '{{ dr.id }}', '{{ year_month }}')">
+                自動引落 新規追加
+            </button>
+
+            <button
+                type="button"
+                class="add-button"
+                onclick="addBudgetItem('individual', '{{ dr.id }}', '{{ year_month }}')">
+                個別支払 新規追加
+            </button>
+
+            <hr>
+            {% endfor %}
+
+            <!-- 全データ一括で保存ボタン -->
+            <button type="submit">保存</button>
+        </form>
+    </div>
+
+
+    <div class="mini-table-container">
+        <h3>連結</h3>
+        <table>
+            <tr><th>連結</th></tr>
+            <tr><td>&nbsp;</td></tr>
+        </table>
+    </div>
+
+
+    <!-- 右カラム (銀行データ) -->
+    <div  class="scrollable scrollable-right">
+        <h3>銀行データ</h3>
+<!-- 入金データを表示 -->
+<h3>入金</h3>
+<table>
+    <tr>
+        <th>日付</th>
+        <th>項目</th>
+        <th>金額</th>
+        <th>操作</th>
+    </tr>
+    {% for bank in bank_data %}
+        {% if bank.transaction_type == "入金" %}
+        <tr draggable="true"
+            ondragstart="dragStart(event)"
+            data-id="{{ bank.bank_id }}"
+            data-name="{{ bank.item_name }}"
+            data-amount="{{ bank.amount }}"
+            data-transaction-type="{{ bank.transaction_type }}"
+            data-connected_number="{{ bank.connected_number|default_if_none:'' }}">
+            <td>{{ bank.date }} {{ bank.transaction_type }}</td>
+            <td>{{ bank.item_name }}</td>
+            <td>{{ bank.amount }}</td>
+            <td>
+                {% if bank.connected_number %}
+                    <button class="unlink-button" onclick="unlinkConnection('{{ bank.connected_number }}')">連結解除</button>
+                {% else %}
+                    &nbsp;
+                {% endif %}
+            </td>
+        </tr>
+        {% endif %}
+    {% endfor %}
+</table>
+
+<!-- 出金データを表示 -->
+<h3>出金</h3>
+<table>
+    <tr>
+        <th>日付</th>
+        <th>項目</th>
+        <th>金額</th>
+        <th>操作</th>
+    </tr>
+    {% for bank in bank_data %}
+        {% if bank.transaction_type == "出金" %}
+        <tr draggable="true"
+            ondragstart="dragStart(event)"
+            data-id="{{ bank.bank_id }}"
+            data-name="{{ bank.item_name }}"
+            data-amount="{{ bank.amount }}"
+            data-transaction-type="{{ bank.transaction_type }}"
+            data-connected_number="{{ bank.connected_number|default_if_none:'' }}">
+            <td>{{ bank.date }} {{ bank.transaction_type }}</td>
+            <td>{{ bank.item_name }}</td>
+            <td>{{ bank.amount }}</td>
+            <td>
+                {% if bank.connected_number %}
+                    <button class="unlink-button" onclick="unlinkConnection('{{ bank.connected_number }}')">連結解除</button>
+                {% else %}
+                    &nbsp;
+                {% endif %}
+            </td>
+        </tr>
+        {% endif %}
+    {% endfor %}
+</table>
+
+    </tr>
+    
+    </div>
+</div>
+
+<script>
+/* CSRFトークンの取得 */
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+
+/* ドラッグ&ドロップ開始時 */
+function dragStart(event) {
+    const row = event.currentTarget;
+    const transactionType = row.dataset.transactionType || "出金";
+
+    event.dataTransfer.setData("id", row.dataset.id);
+    event.dataTransfer.setData("name", row.dataset.name);
+    event.dataTransfer.setData("amount", row.dataset.amount);
+    event.dataTransfer.setData("transaction_type", transactionType);
+    event.dataTransfer.setData("connected_number", row.dataset.connected_number || "");
+}
+
+/* ドロップ先が受け取れるようにする */
+function allowDrop(event) {
+    event.preventDefault();
+}
+
+/**
+ * ドロップ直後にAjaxを投げて銀行データとの連携まで行う
+ */
+function drop(event, dateRangeId, itemType) {
+    event.preventDefault();
+    const itemId = event.dataTransfer.getData("id");
+    const itemName = event.dataTransfer.getData("name");
+    const amount = event.dataTransfer.getData("amount");
+    const transactionType = event.dataTransfer.getData("transaction_type") || "出金";
+    const connected_number = event.dataTransfer.getData("connected_number");
+
+    // 既に連結されている銀行データならエラー
+    if (connected_number && connected_number !== "None" && connected_number !== "") {
+        alert(`このデータは既に連結されています（番号:${connected_number}）。`);
+        return;
+    }
+
+    // 入金・出金の種別が正しいドロップ先か確認
+    const isIncome = (transactionType === "入金");
+    const isValidDrop = (isIncome && itemType === "income")
+                     || (!isIncome && (itemType === "auto" || itemType === "individual"));
+    if (!isValidDrop) {
+        alert(`この取引は追加できません。(取引種別: ${transactionType})`);
+        return;
+    }
+
+    // 画面上のテーブルにも行を追加して見た目を更新（暫定）
+    const tbody = document.getElementById(`${itemType}_items_${dateRangeId}`);
+    if (tbody) {
+        const newRow = tbody.insertRow();
+        newRow.innerHTML = `
+            <td class="text-left">${itemName}</td>
+            <td>0</td>
+            <td>0</td>
+            <td class="text-right"><input type="number" value="${amount}" class="text-right"></td>
+            <td class="text-right">${amount}</td>
+            <td></td>
+        `;
+    }
+
+    // Ajaxでサーバーへ連携依頼
+    fetch("{% url 'addbudget_item' %}", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrftoken
+        },
+        body: JSON.stringify({
+            from_dragdrop: true,
+            item_id: itemId,         // BankDataの主キー
+            bank_id: itemId,         // 同じく bank_id として使う
+            item_name: itemName,
+            amount: amount,
+            transaction_type: transactionType,
+            daterange_id: dateRangeId,
+            itemtype: itemType,      // "income" / "auto" / "individual"
+            year_month: "{{ year_month }}",
+            account_code_id: "{{ selected_account_code.id|default_if_none:'' }}"
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === "success") {
+            console.log("連携成功:", data.message);
+            // Ajax通信成功 -> ここで手動リロード
+            window.location.reload(); 
+        } else {
+            console.error("連携エラー:", data.message);
+            alert("連携エラー: " + data.message);
+        }
+    })
+    .catch(error => console.error("通信エラー:", error));
+}
+
+/* 新規追加ボタン（画面に行を追加するだけ・サーバー送信は保存ボタン時） */
+function addBudgetItem(itemType, dateRangeId, yearMonth) {
+    let tbodyId;
+    let itemTypeValue;
+
+    if (itemType === 'income') {
+        tbodyId = 'income_items_' + dateRangeId;
+        itemTypeValue = "入金";
+    } else if (itemType === 'auto') {
+        tbodyId = 'auto_items_' + dateRangeId;
+        itemTypeValue = "自動引落";
+    } else if (itemType === 'individual') {
+        tbodyId = 'individual_items_' + dateRangeId;
+        itemTypeValue = "個別支払";
+    }
+
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+
+    const newRow = tbody.insertRow();
+    const prefix = dateRangeId + '_' + itemType + '_new';
+    newRow.innerHTML = `
+        <td><input type="text" name="item_name_${prefix}" placeholder="相手先"></td>
+        <td><input type="number" name="sort_no1_${prefix}" value="0" style="width:50px;"></td>
+        <td><input type="number" name="sort_no2_${prefix}" value="0" style="width:50px;"></td>
+        <td><input type="number" name="default_amount_${prefix}" value="0" class="text-right"></td>
+        <td></td>
+        <td></td>
+
+        <input type="hidden" name="itemtype_${prefix}" value="${itemTypeValue}">
+        <input type="hidden" name="daterange_${prefix}" value="${dateRangeId}">
+        <input type="hidden" name="year_month_${prefix}" value="${yearMonth}">
+        <input type="hidden" name="actual_${prefix}" value="False">
+    `;
+}
+
+
+
+
+function unlinkConnection(connectedNumber) {
+    if (!confirm("本当に連結を解除しますか？")) {
+        return;
+    }
+
+    fetch("{% url 'unlink_connection' %}", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie('csrftoken')
+        },
+        body: JSON.stringify({ connected_number: connectedNumber })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === "success") {
+            alert("連結を解除しました");
+            window.location.reload(); // F5と同じ挙動
+        } else {
+            alert("連結解除に失敗しました: " + data.message);
+        }
+    })
+    .catch(error => console.error("エラー:", error));
+}
+
+//----------------------------------------------------------------------------------------------
+document.addEventListener("DOMContentLoaded", function() {
+  // 左側テーブル
+  const scrollableLeft = document.querySelector('.scrollable-left');
+  if (!scrollableLeft) return;
+
+  // ページ読込時にスクロール位置を復元
+  const savedLeftPos = localStorage.getItem("scrollLeftPos");
+  if (savedLeftPos !== null) {
+    scrollableLeft.scrollTop = parseInt(savedLeftPos, 10);
+  }
+
+  // スクロールする度にスクロール位置を保存
+  scrollableLeft.addEventListener("scroll", function() {
+    localStorage.setItem("scrollLeftPos", scrollableLeft.scrollTop);
+  });
+});
+
+//-----------------------------------------------
+/* 個別のアコーディオン開閉（クリック対応） */
+function toggleAccordion(tbodyId) {
+    const elem = document.getElementById(tbodyId);
+    if (!elem) return;
+
+    elem.classList.toggle('hidden');
+
+    // アイコンの向きを変更
+    const icon = document.querySelector(`[data-target="${tbodyId}"] .accordion-icon`);
+    if (icon) {
+        icon.textContent = elem.classList.contains('hidden') ? '▼' : '▲';
+    }
+
+    // ローカルストレージに保存
+    const accordions = JSON.parse(localStorage.getItem('accordions')) || {};
+    accordions[tbodyId] = !elem.classList.contains('hidden'); // true: 開く, false: 閉じる
+    localStorage.setItem('accordions', JSON.stringify(accordions));
+}
+
+/* すべてのアコーディオンを開く */
+function openAllAccordions() {
+    document.querySelectorAll('tbody[id^="connected_"]').forEach(tbody => {
+        tbody.classList.remove('hidden'); // すべて開く
+
+        // アイコンの向きを変更
+        const icon = document.querySelector(`[data-target="${tbody.id}"] .accordion-icon`);
+        if (icon) icon.textContent = '▲';
+    });
+    saveAllAccordionState(true);
+}
+
+/* すべてのアコーディオンを閉じる */
+function closeAllAccordions() {
+    document.querySelectorAll('tbody[id^="connected_"]').forEach(tbody => {
+        tbody.classList.add('hidden'); // すべて閉じる
+
+        // アイコンの向きを変更
+        const icon = document.querySelector(`[data-target="${tbody.id}"] .accordion-icon`);
+        if (icon) icon.textContent = '▼';
+    });
+    saveAllAccordionState(false);
+}
+
+/* すべてのアコーディオン状態を保存 */
+function saveAllAccordionState(isOpen) {
+    const accordions = {};
+    document.querySelectorAll('tbody[id^="connected_"]').forEach(tbody => {
+        accordions[tbody.id] = isOpen;
+    });
+    localStorage.setItem('accordions', JSON.stringify(accordions));
+}
+
+/* ページ読み込み時に開閉状態を復元 */
+document.addEventListener("DOMContentLoaded", function() {
+    const accordions = JSON.parse(localStorage.getItem('accordions')) || {};
+    
+    document.querySelectorAll('tbody[id^="connected_"]').forEach(tbody => {
+        if (accordions[tbody.id] !== undefined) {
+            tbody.classList.toggle('hidden', !accordions[tbody.id]); // true: 開く, false: 閉じる
+            
+            // アイコンの向きも復元
+            const icon = document.querySelector(`[data-target="${tbody.id}"] .accordion-icon`);
+            if (icon) icon.textContent = accordions[tbody.id] ? '▲' : '▼';
+        }
+    });
+
+    // アコーディオンヘッダーのクリックイベントを設定
+    document.querySelectorAll('.accordion-header').forEach(header => {
+        header.addEventListener('click', function () {
+            const tbodyId = this.getAttribute('data-target');
+            toggleAccordion(tbodyId);
+        });
+    });
+});
+
+
+</script>
+</body>
+</html>

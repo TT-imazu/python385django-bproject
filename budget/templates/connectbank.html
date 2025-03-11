@@ -1,0 +1,531 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>予算集計</title>
+    <style>
+        .container {
+            display: flex;
+            justify-content: space-between;
+            height: 90vh;
+            width: 100%;
+            overflow: hidden;
+        }
+        .side-table-container {
+            width: 20%;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .scrollable {
+            width: 30%;
+            border: 1px solid #ccc;
+            overflow-y: scroll;
+            box-sizing: border-box;
+        }
+        .mini-table-container {
+            width: 15%;
+            border: 2px dashed #aaa;
+            box-sizing: border-box;
+            margin: 0 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td { border: 1px solid black; }
+        th, td {
+            padding: 5px;
+            text-align: center;
+        }
+        .highlight { background-color: yellow; }
+        .blue-highlight { background-color: #cfdff3; }
+        .blue2-highlight { background-color: #cff3d5; }
+        .text-right { text-align: right; }
+        .text-left { text-align: left; }
+        input[type="number"] { width: 80px; }
+        .add-button {
+            background-color: #4CAF50; /* Green */
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            margin: 4px 2px;
+            cursor: pointer;
+        }
+        .no-border td, .no-border th {
+            border-left: none; border-right: none;
+        }
+        .draggable-item {
+            cursor: move;
+        }
+        .disabled {
+            background-color: #eee;
+            pointer-events: none; /* ドラッグ不可 */
+        }
+        .droppable-area {
+            min-height: 80px;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- 左端のテーブル（例: 仕訳データなど） -->
+    <div class="side-table-container">
+        <h3>仕訳データ (サンプル)</h3>
+        <table>
+            <tr><th>日付</th><th>摘要</th><th>金額</th></tr>
+            <tr><td>2025-01-01</td><td>サンプルA</td><td>3000</td></tr>
+        </table>
+    </div>
+
+    <!-- 中央(スクロール可能)の 予算データ -->
+    <div class="scrollable">
+        <h3>予算データ</h3>
+        <form method="post" action="{% url 'connectbank' %}">
+            {% csrf_token %}
+            {% for dr, data in budget_data.items %}
+            <h4>{{ dr.name }}</h4>
+            <table>
+                <tr>
+                    <td colspan="2">前月残高</td>
+                    <td>{{ data.prev_balance }}</td>
+                    <td></td>
+                </tr>
+                <!-- 入金 -->
+                <tr class="highlight no-border">
+                    <th></th><th>= 入金 =</th><th>
+                        <!--
+                        <button type="button" class="add-button" onclick="addBudgetItem('income', '{{ dr.id }}')">
+                            新規追加
+                        </button>
+                        -->
+                    </th><th></th>
+                </tr>
+                <tr class="highlight">
+                    <th>相手先</th><th>見込</th><th>実際</th><th>連結</th>
+                </tr>
+                <tbody id="income_items_{{ dr.id }}">
+                {% for item in data.items.入金 %}
+                    <tr draggable="true"
+                        class="draggable-item {% if item.connected_number %}disabled{% endif %}"
+                        data-id="{{ item.id }}"
+                        data-amount="{{ item.amount }}"
+                        data-type="入金"
+                        data-source="budget"
+                        ondragstart="handleDragStart(event)">
+                        <td class="text-left">{{ item.item_name }}</td>
+                        <td class="text-right">
+                            {% if not item.connected_number %}
+                            <input type="number"
+                                   name="amount_{{ item.id }}"
+                                   value="{{ item.amount }}" />
+                            {% endif %}
+                        </td>
+                        <td class="text-right">
+                            {% if item.connected_number %}
+                                {{ item.amount }}
+                            {% endif %}
+                        </td>
+                        <td>{% if item.connected_number %}{{ item.connected_number }}{% else %}-{% endif %}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+                <tr class="highlight">
+                    <td>=入金合計=</td>
+                    <td colspan="2">{{ data.income_total }}</td><td></td>
+                </tr>
+
+                <!-- 出金 -->
+                <tr class="blue-highlight">
+                    <th colspan="4">= 出 金 =</th>
+                </tr>
+                <!-- 自動引落 -->
+                <tr class="no-border">
+                    <th></th><th>自動引落</th><th>
+                        <!--
+                        <button type="button" class="add-button" onclick="addBudgetItem('auto', '{{ dr.id }}')">
+                            新規追加
+                        </button>
+                    -->
+                    </th><th></th>
+                </tr>
+                <tr class="blue2-highlight">
+                    <th>相手先</th><th>見込</th><th>実際</th><th>連結</th>
+                </tr>
+                <tbody id="auto_items_{{ dr.id }}">
+                {% for item in data.items.自動引落 %}
+                    <tr draggable="true"
+                        class="draggable-item {% if item.connected_number %}disabled{% endif %}"
+                        data-id="{{ item.id }}"
+                        data-amount="{{ item.amount }}"
+                        data-type="出金"
+                        data-source="budget"
+                        ondragstart="handleDragStart(event)">
+                        <td>{{ item.item_name }}</td>
+                        <td>
+                            {% if not item.connected_number %}
+                            <input type="number"
+                                   name="amount_{{ item.id }}"
+                                   value="{{ item.amount }}" />
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.connected_number %}
+                                   {{ item.amount }}
+                            {% endif %}
+                        </td>
+                        <td>{% if item.connected_number %}{{ item.connected_number }}{% else %}-{% endif %}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+                <tr class="blue2-highlight">
+                    <td>自動引落合計</td>
+                    <td colspan="2">{{ data.expense_auto_total }}</td><td></td>
+                </tr>
+                <!-- 個別支払 -->
+                <tr class="no-border">
+                    <th></th><th>個別支払</th><th>
+                        <!--
+                        <button type="button" class="add-button" onclick="addBudgetItem('individual', '{{ dr.id }}')">
+                            新規追加
+                        </button>
+                    -->
+                    </th><th></th>
+                </tr>
+                <tr class="blue2-highlight">
+                    <th>相手先</th><th>見込</th><th>実際</th><th>連結</th>
+                </tr>
+                <tbody id="individual_items_{{ dr.id }}">
+                {% for item in data.items.個別支払 %}
+                    <tr draggable="true"
+                        class="draggable-item {% if item.connected_number %}disabled{% endif %}"
+                        data-id="{{ item.id }}"
+                        data-amount="{{ item.amount }}"
+                        data-type="出金"
+                        data-source="budget"
+                        ondragstart="handleDragStart(event)">
+                        <td>{{ item.item_name }}</td>
+                        <td>
+                            {% if not item.connected_number %}
+                            <input type="number"
+                                   name="amount_{{ item.id }}"
+                                   value="{{ item.amount }}" />
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.connected_number %}
+                                {{ item.amount }}
+                            {% endif %}
+                        </td>
+                        <td>{% if item.connected_number %}{{ item.connected_number }}{% else %}-{% endif %}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+                <tr class="blue2-highlight">
+                    <td>個別支払合計</td>
+                    <td colspan="2">{{ data.expense_individual_total }}</td><td></td>
+                </tr>
+                <tr class="blue-highlight">
+                    <td>=出金合計=</td>
+                    <td colspan="2">{{ data.total_expense }}</td><td></td>
+                </tr>
+                <tr class="blue-highlight">
+                    <td colspan="2">{{ dr.name }} 残高見込</td>
+                    <td>{{ data.new_balance }}</td><td></td>
+                </tr>
+            </table>
+            {% endfor %}
+            <button type="submit">予算保存</button>
+        </form>
+    </div>
+
+    <!-- 右から二番目の「連結テーブル」 (ドロップ先) -->
+    <div class="mini-table-container">
+        <h3>連結テーブル</h3>
+        <div id="drop-area"
+             class="droppable-area"
+             ondragover="handleDragOver(event)"
+             ondrop="handleDrop(event)">
+        </div>
+        <button id="connect-button" onclick="submitConnect()" disabled>連結</button>
+        <button onclick="clearConnect()">クリア</button>
+        <button onclick="deleteConnect()">連結削除</button>
+
+        <!-- 連結削除用の入力(例) -->
+        <div>
+          <input type="text" id="connect-number-input" placeholder="連結番号" />
+        </div>
+    </div>
+
+    <!-- いちばん右の「銀行データ」 -->
+    <div class="side-table-container">
+        <h3>銀行データ</h3>
+        <table>
+            <tr><th>日付</th><th>摘要</th><th>金額</th><th>連結</th></tr>
+            {% for bank in bank_data %}
+            <tr draggable="true"
+                class="draggable-item {% if bank.connected_number %}disabled{% endif %}"
+                data-id="{{ bank.bank_id }}"
+                data-amount="{{ bank.amount }}"
+                data-type="{{ bank.transaction_type }}"
+                data-source="bank"
+                ondragstart="handleDragStart(event)">
+                <td>{{ bank.date }}</td>
+                <td>{{ bank.item_name }}</td>
+                <td>{{ bank.amount }}</td>
+                <td>{% if bank.connected_number %}{{ bank.connected_number }}{% else %}-{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+</div>
+
+<script>
+// ----------------------
+// CSRFトークン取得
+// ----------------------
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+
+// ----------------------
+// ドラッグ＆ドロップ
+// ----------------------
+let connectList = [];  // ドロップされたアイテムを保持
+
+function handleDragStart(e) {
+    const row = e.currentTarget;
+    if (row.classList.contains('disabled')) {
+        // 連結済みのためドラッグ不可
+        e.preventDefault();
+        return;
+    }
+    // data-属性から情報を取得
+    const itemData = {
+        id: row.dataset.id,
+        amount: parseInt(row.dataset.amount, 10),
+        type: row.dataset.type,   // "入金" or "出金"
+        source: row.dataset.source // "bank" or "budget"
+    };
+    e.dataTransfer.setData("application/json", JSON.stringify(itemData));
+}
+
+function handleDragOver(e) {
+    e.preventDefault(); // ドロップを許可
+}
+
+//function handleDrop(e) {
+//    e.preventDefault();
+//    const jsonStr = e.dataTransfer.getData("application/json");
+//    if (!jsonStr) return;
+//    const item = JSON.parse(jsonStr);
+//
+//    connectList.push(item);
+//    renderConnectArea();
+//    checkConnectable();
+//}
+
+
+function handleDrop(e) {
+    e.preventDefault();
+    const jsonStr = e.dataTransfer.getData("application/json");
+    if (!jsonStr) return;
+    const item = JSON.parse(jsonStr);
+
+    // 既に追加されているかチェック
+    if (connectList.some(existingItem => existingItem.id === item.id && existingItem.source === item.source)) {
+        alert("このデータはすでに連結候補に追加されています");
+        return;
+    }
+
+    connectList.push(item);
+    renderConnectArea();
+    checkConnectable();
+}
+
+
+function renderConnectArea() {
+    const dropArea = document.getElementById('drop-area');
+    dropArea.innerHTML = '';
+    connectList.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.textContent = `[${item.source}] ${item.id}, 金額:${item.amount}, 種別:${item.type}`;
+        dropArea.appendChild(div);
+    });
+}
+
+function checkConnectable() {
+    const connectButton = document.getElementById('connect-button');
+    if (connectList.length < 2) {
+        connectButton.disabled = true;
+        return;
+    }
+
+    // 銀行データ vs 予算データに分割
+    const bankItems = connectList.filter(x => x.source === 'bank');
+    const budgetItems = connectList.filter(x => x.source === 'budget');
+    if (bankItems.length === 0 || budgetItems.length === 0) {
+        connectButton.disabled = true;
+        return;
+    }
+
+    // 銀行データ内で type が混在していないか
+    const bankType = bankItems[0].type;
+    if (!bankItems.every(x => x.type === bankType)) {
+        connectButton.disabled = true;
+        return;
+    }
+
+    // 予算データ内で type が混在していないか
+    const budgetType = budgetItems[0].type;
+    if (!budgetItems.every(x => x.type === budgetType)) {
+        connectButton.disabled = true;
+        return;
+    }
+
+    // 銀行データのtype と 予算データのtype が一致するか(入金同士 or 出金同士)
+    if (bankType !== budgetType) {
+        connectButton.disabled = true;
+        return;
+    }
+
+    // 金額合計一致?
+    const sumBank = bankItems.reduce((acc, x) => acc + x.amount, 0);
+    const sumBudget = budgetItems.reduce((acc, x) => acc + x.amount, 0);
+    if (sumBank !== sumBudget) {
+        connectButton.disabled = true;
+        return;
+    }
+
+    // すべて条件OK
+    connectButton.disabled = false;
+}
+
+// 連結ボタン押下: AJAX でサーバーに送信
+function submitConnect() {
+    fetch("{% url 'connect_connectbank' %}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+        },
+        body: JSON.stringify({ connect_items: connectList })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert(`連結完了。連結番号: ${data.connect_number}`);
+            // 画面再読み込みで連結状態を反映
+            window.location.reload();
+        } else {
+            alert(`連結失敗: ${data.message || ''}`);
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('連結エラー');
+    });
+}
+
+function clearConnect() {
+    connectList = [];
+    renderConnectArea();
+    checkConnectable();
+}
+
+// 連結削除ボタン押下
+function deleteConnect() {
+    const connInput = document.getElementById('connect-number-input');
+    const connNumber = connInput.value;
+    if (!connNumber) {
+        alert('連結番号を入力してください');
+        return;
+    }
+    fetch("{% url 'delete_connectbank' %}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+        },
+        body: JSON.stringify({ connect_number: connNumber })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert('連結を解除しました');
+            window.location.reload();
+        } else {
+            alert(`解除失敗: ${data.message || ''}`);
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('解除エラー');
+    });
+}
+
+// ----------------------
+// 新規追加 (予算データ)
+// ----------------------
+function addBudgetItem(itemType, dateRangeId, yearMonth) {
+    let tbodyId;
+    let itemTypeValue;
+
+    if (itemType === 'income') {
+        tbodyId = 'income_items_' + dateRangeId;
+        itemTypeValue = "入金";
+    } else if (itemType === 'auto') {
+        tbodyId = 'auto_items_' + dateRangeId;
+        itemTypeValue = "自動引落";
+    } else if (itemType === 'individual') {
+        tbodyId = 'individual_items_' + dateRangeId;
+        itemTypeValue = "個別支払";
+    }
+
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) {
+        console.error("tbody not found:", tbodyId);
+        return;
+    }
+
+    const newRow = tbody.insertRow();
+    newRow.setAttribute('draggable', 'true');
+    newRow.classList.add('draggable-item');
+    newRow.dataset.source = "budget";
+    newRow.dataset.id = "new_item"; // 仮ID
+    newRow.dataset.amount = "0";
+    const txType = (itemTypeValue === "入金") ? "入金" : "出金";
+    newRow.dataset.type = txType;
+    newRow.addEventListener('dragstart', handleDragStart);
+
+    newRow.innerHTML = `
+        <td><input type="text" name="item_name_${dateRangeId}_${itemType}_new"></td>
+        <td><input type="number" name="default_amount_${dateRangeId}_${itemType}_new" value="0"></td>
+        <td></td>
+        <input type="hidden" name="itemtype_${dateRangeId}_${itemType}_new" value="${itemTypeValue}">
+        <input type="hidden" name="daterange_${dateRangeId}_${itemType}_new" value="${dateRangeId}">
+        <input type="hidden" name="year_month_${dateRangeId}_${itemType}_new" value="${yearMonth}">
+        <input type="hidden" name="actual_${dateRangeId}_${itemType}_new" value="False">
+        <td>-</td>
+    `;
+}
+
+</script>
+</body>
+</html>
