@@ -1,0 +1,7 @@
+<!-- templates/upload_basebudget.html -->
+<h2>BaseBudgetに取り込むCSVをアップロード</h2>
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">取り込む</button>
+</form>

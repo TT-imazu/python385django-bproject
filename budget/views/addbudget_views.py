@@ -3,10 +3,12 @@ from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 import json
 from datetime import datetime, date
+from dateutil.relativedelta import relativedelta
 import calendar
 import uuid
 
 from django.db.models import Q
+
 
 from budget.models import (
     Budget, DateRange, BankData,
@@ -17,11 +19,13 @@ from budget.models import (
 def convert_itemtype(itemtype):
     """Ajaxドラッグ＆ドロップ時の 'income' → '入金' 等の変換用"""
     mapping = {
-        "income": "入金",
+        "insales": "工事金入金",
+        "inregular": "その他入金",
         "auto": "自動引落",
         "individual": "個別支払",
+        "fundtrans": "預金振替"
     }
-    return mapping.get(itemtype, "入金")
+    return mapping.get(itemtype, "工事金入金")
 
 @login_required
 def addbudget(request):
@@ -85,12 +89,12 @@ def addbudget(request):
 
         # (A) 既存レコードの更新
         for key, value in request.POST.items():
-            if key.startswith('default_amount_') and not key.endswith('_new'):
+            if key.startswith('amount_') and not key.endswith('_new'):
                 budget_id_str = key.split('_')[-1]
                 try:
                     budget_id = int(budget_id_str)
                     budget_item = Budget.objects.get(id=budget_id)
-                    budget_item.default_amount = int(value or 0)
+                    budget_item.amount = int(value or 0)
                     budget_item.save()
                 except (ValueError, Budget.DoesNotExist):
                     pass
@@ -118,30 +122,30 @@ def addbudget(request):
         # (B) 新規レコードの追加
         date_ranges = DateRange.objects.all()
         for dr in date_ranges:
-            for item_type in ['income', 'auto', 'individual']:
+            for item_type in ['insales', 'inregular', 'auto', 'individual','fundtrans']:
                 prefix = f"{dr.id}_{item_type}_new"
 
                 item_name_key = f'item_name_{prefix}'
-                default_amount_key = f'default_amount_{prefix}'
+                amount_key = f'amount_{prefix}'
                 sort_no1_key = f'sort_no1_{prefix}'
                 sort_no2_key = f'sort_no2_{prefix}'
                 itemtype_key = f'itemtype_{prefix}'
                 daterange_key = f'daterange_{prefix}'
-                actual_key = f'actual_{prefix}'
+                #actual_key = f'True'
                 yearmonth_key = f'year_month_{prefix}'
 
                 if item_name_key in request.POST:
                     item_name = request.POST.get(item_name_key, '')
-                    default_amount_str = request.POST.get(default_amount_key, '0')
+                    amount_str = request.POST.get(amount_key, '0')
                     sort_no1_str = request.POST.get(sort_no1_key, '0')
                     sort_no2_str = request.POST.get(sort_no2_key, '0')
-                    itemtype_str = request.POST.get(itemtype_key, '入金')
+                    itemtype_str = request.POST.get(itemtype_key, '工事金入金')
                     daterange_id = request.POST.get(daterange_key)
-                    actual = (request.POST.get(actual_key) == "True")
+                    #actual = (request.POST.get(actual_key) == "True")
                     post_year_month = request.POST.get(yearmonth_key, user_settings.year_month)
 
                     try:
-                        default_amount = int(default_amount_str)
+                        amount = int(amount_str)
                         s1 = int(sort_no1_str)
                         s2 = int(sort_no2_str)
                         daterange_obj = DateRange.objects.get(id=daterange_id)
@@ -150,9 +154,9 @@ def addbudget(request):
                             daterange=daterange_obj,
                             itemtype=itemtype_str,
                             item_name=item_name,
-                            default_amount=default_amount,
-                            amount=default_amount,
-                            actual=actual,
+                            amount=amount,
+                            #default_amount=0,
+                            #actual=actual,
                             year_month=post_year_month,
                             account_code=user_settings.selected_account_code,
                             sort_no1=s1,
@@ -192,8 +196,15 @@ def addbudget(request):
     start_date = date(year, month, start_day)
     end_date = date(year, month, end_day)
 
+    # 1ヶ月前の日付を取得
+    one_month_ago = start_date - relativedelta(months=1)
+
     # Budgetをフィルタ
     budgets_qs = Budget.objects.filter(year_month=selected_year_month)
+
+    fundtrans_qs = budgets_qs.filter(itemtype="預金振替")
+    amount_fundtrans = sum(i.amount for i in fundtrans_qs)
+    
     if selected_account_code:
         budgets_qs = budgets_qs.filter(account_code=selected_account_code)
 
@@ -213,7 +224,7 @@ def addbudget(request):
     budgets_qs = budgets_qs.order_by('sort_no1', 'sort_no2', 'id')
 
     # 銀行データ
-    bank_data_qs = BankData.objects.filter(date__range=[start_date, end_date])
+    bank_data_qs = BankData.objects.filter(date__range=[one_month_ago, end_date])
     if selected_account_code:
         bank_data_qs = bank_data_qs.filter(account_code=selected_account_code)
 
@@ -245,26 +256,36 @@ def addbudget(request):
     tmp_prev_balance = prev_balance
 
     for dr in date_ranges:
-        items_in = budgets_qs.filter(daterange=dr, itemtype="入金")
+        items_insales = budgets_qs.filter(daterange=dr, itemtype="工事金入金")
+        items_inregular = budgets_qs.filter(daterange=dr, itemtype="その他入金")
         items_auto = budgets_qs.filter(daterange=dr, itemtype="自動引落")
         items_individual = budgets_qs.filter(daterange=dr, itemtype="個別支払")
+        items_fundtrans = budgets_qs.filter(daterange=dr, itemtype="預金振替")
 
-        income_total = sum(i.amount for i in items_in)
+        income_sales_total = sum(i.amount for i in items_insales)
+        income_regular_total = sum(i.amount for i in items_inregular)
+        total_income = income_sales_total + income_regular_total
         expense_auto_total = sum(i.amount for i in items_auto)
         expense_individual_total = sum(i.amount for i in items_individual)
         total_expense = expense_auto_total + expense_individual_total
-        new_balance = tmp_prev_balance + income_total - total_expense
+        total_fundtrans = sum(i.amount for i in items_fundtrans)
+        new_balance = tmp_prev_balance + total_income - total_expense + total_fundtrans
 
         budget_data[dr] = {
             "items": {
-                "入金": items_in.order_by('sort_no1', 'sort_no2'),
+                "工事金入金": items_insales.order_by('sort_no1', 'sort_no2'),                
+                "その他入金": items_inregular.order_by('sort_no1', 'sort_no2'),
                 "自動引落": items_auto.order_by('sort_no1', 'sort_no2'),
                 "個別支払": items_individual.order_by('sort_no1', 'sort_no2'),
+                "預金振替": items_fundtrans.order_by('sort_no1', 'sort_no2'),
             },
-            "income_total": income_total,
+            "income_sales": income_sales_total,
+            "income_regular": income_regular_total,
+            "total_income": total_income,
             "expense_auto_total": expense_auto_total,
             "expense_individual_total": expense_individual_total,
             "total_expense": total_expense,
+            "total_fundtrans": total_fundtrans,
             "prev_balance": tmp_prev_balance,
             "new_balance": new_balance,
         }
@@ -281,6 +302,7 @@ def addbudget(request):
         "account_codes": AccountCode.objects.all(),
         "user_settings": user_settings,
         "date_ranges_all": date_ranges_all,
+        "amount_fundtrans": amount_fundtrans,
     }
     return render(request, 'addbudget.html', context)
 
@@ -294,14 +316,30 @@ def addbudget_item(request):
     """
     if request.method == "POST":
         try:
+            # -------------------------
+            # 1) ユーザー設定を取得
+            # -------------------------
+            # ユーザーの user_code を取得
+            user = request.user
+            user_settings = UserSettings.objects.get(user=user)
+            user_codename = user_settings.codename
+            year_month =  user_settings.year_month
+
             data = json.loads(request.body)
             item_id = data.get("item_id")            # 画面で "bank_id" と同じ
             item_name = data.get("item_name", "")
             amount = int(data.get("amount", 0))
             day_num = int(data.get("day_num", 0))
+
+            # 月をまたいだ未処理があった場合
+            if day_num > user_settings.end_day:
+                day_num = user_settings.end_day
+
             daterange_id = int(data.get("daterange_id", 0))
             itemtype_key = data.get("itemtype", "income")
-            year_month = data.get("year_month", datetime.today().strftime('%Y%m'))
+            #///
+            #year_month = data.get("year_month", datetime.today().strftime('%Y%m'))
+            #///
             account_code_id = data.get("account_code_id")
             from_dragdrop = data.get("from_dragdrop", False)
             bank_id = data.get("bank_id")  # BankDataの主キー
@@ -320,14 +358,21 @@ def addbudget_item(request):
             # itemtype を 'income'→'入金' 等に変換
             itemtype_str = convert_itemtype(itemtype_key)
 
+
+
+
+            # item_name の前に user_code を追加
+            item_name = f"[{user_codename}]{item_name}" if user_codename else item_name
+
+
             # (1) Budgetレコード新規作成 (まだ connected_number は付けない)
             new_budget = Budget.objects.create(
                 daterange=dr_obj,
                 itemtype=itemtype_str,
                 item_name=item_name,
                 amount=amount,
-                default_amount=amount,
-                actual=True,
+                #default_amount=0,
+                #actual=True,
                 year_month=year_month,
                 account_code=ac_obj,
                 sort_no1=day_num,

@@ -1,0 +1,18 @@
+{% block content %}
+    <h2>予算データの作成</h2>
+
+    {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+                <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <label for="id_year_month">作成する年月 (YYYYMM):</label>
+        {{ form.year_month }}
+        <button type="submit">作成</button>
+    </form>
+{% endblock %}

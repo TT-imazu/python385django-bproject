@@ -1,0 +1,1634 @@
+
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>予算集計</title>
+    <style>
+        /* 全体のレイアウトをグリッドに変更し、バランス調整 */
+        .container {
+            display: grid;
+            grid-template-columns: 0.4fr 0.2fr 0.4fr; /* 左:やや狭め, 中央:広め, 右:やや狭め */
+            gap: 20px;
+            width: 100%;
+            min-height: 90vh;
+            margin: 0 auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* サイドテーブルの共通デザイン */
+        .side-table-container {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            background-color: #fff; 
+            padding: 10px;
+        }
+
+        /* 中央のテーブルエリア（スクロール可能） */
+        .scrollable {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            background-color: #f9f9f9;
+            padding: 10px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        /* 小さいテーブルのコンテナ（今回の例では使っていないなら削除可） */
+        .mini-table-container {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            background-color: #fff;
+            padding: 10px;
+        }
+
+        /* テーブルの共通スタイル */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+
+        /* 強調表示(ハイライト)の色を少し抑えめに */
+        .highlight {
+            background-color: #fffae0; /* 薄い黄色 */
+        }
+        .blue-highlight {
+            background-color: #eaf3ff; /* 薄い水色 */
+        }
+        .blue2-highlight {
+            background-color: #e0f9e0; /* 薄い緑色 */
+        }
+
+        /* ボタンのスタイルを整える */
+        .add-button {
+            background-color: #007BFF; 
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            margin: 4px 2px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .add-button:hover {
+            background-color: #0056b3;
+        }
+
+        /* 数字用の右寄せなど */
+        .text-right {
+            text-align: right;
+        }
+        .text-left {
+            text-align: left;
+        }
+        input[type="number"] {
+            width: 80px;
+        }
+
+        /* ボーダーを非表示にするスタイル */
+        .no-border td, .no-border th {
+            border: none;
+        }
+
+        /* アコーディオンのヘッダー部分 */
+        .accordion-header {
+            cursor: pointer;
+            background-color: #e1e1e1;
+            font-weight: bold;
+        }
+        .accordion-header:hover {
+            background-color: #ccc;
+        }
+        .accordion-icon {
+            float: right;
+            margin-right: 10px;
+        }
+        /* 折りたたみ用 */
+        .hidden {
+            display: none;
+        }
+
+    /* テーブルの列幅調整 */
+    table col.date-col { width: 5%; }  /* 日付 */
+    table col.number-col { width: 5%; } /* 番号 */
+    table col.ammount-col { width: 30%; } /* 実際 */
+    table col.name-col { width: 45%; } /* 相手先は自動調整 */
+    table col.connect-col { width: 15%; } /* 連結 */
+
+
+    </style>
+</head>
+<body>
+
+
+<!-- 隠し要素として amount_fundtrans を設定 (画面には表示しない) -->
+<input type="hidden" id="amount_fundtrans" value="0">
+
+<!-- 年月 & 口座選択フォーム -->
+<form method="POST" action="/addbudget/">
+    <input type="hidden" name="csrfmiddlewaretoken" value="kf5eaGbQuPGXTPW8r0SiSLId2KmefPYTA7RIPXXg5hDidnHbKgv5QEOxRKB24wjB">
+    <label>表示年月 (YYYYMM): </label>
+    <input type="text" name="year_month" value="202502">
+
+    <label>口座コード:</label>
+    <select name="account_code_id">
+        <option value="">-- 未選択 --</option>
+        
+            <option value="1"
+                
+            >
+                0056 / 1 / 1
+            </option>
+        
+            <option value="2"
+                
+            >
+                0001 / 1 / 3000
+            </option>
+        
+            <option value="3"
+                
+            >
+                三菱UFJ銀行 / 当座 / 9004328
+            </option>
+        
+            <option value="4"
+                
+            >
+                広島銀行 / 当座 / 3500904
+            </option>
+        
+            <option value="5"
+                
+            >
+                山陰合同銀行 / 当座 / 1015073
+            </option>
+        
+            <option value="6"
+                
+                    selected
+                
+            >
+                もみじ銀行 / 当座 / 0003647
+            </option>
+        
+            <option value="7"
+                
+            >
+                中国銀行 / その他 / 5714
+            </option>
+        
+    </select>
+
+    <!-- ★ ここに DateRange の選択を追加 -->
+    <label>期間 (DateRange):</label>
+    <select name="daterange_id">
+        <option value="">-- 未選択 --</option>
+        
+            <option value="1"
+                
+            >
+                01日～10日 (1～10)
+            </option>
+        
+            <option value="2"
+                
+            >
+                11日～20日 (11～20)
+            </option>
+        
+            <option value="3"
+                
+            >
+                21日～31日 (21～31)
+            </option>
+        
+    </select>
+
+    <!-- 日付の上限 (end_day) -->
+    <label>日付指定:</label>
+    <input type="number" name="end_day" value="5" style="width:80px;">
+
+    <!-- 連結フラグ (connectflag) -->
+    <label>連結ありのみ?</label>
+    <input type="checkbox" name="connectflag" value="1"
+        >
+
+    <button type="submit">変更</button>
+</form>
+
+<button onclick="openAllAccordions()">すべて開く</button>
+<button onclick="closeAllAccordions()">すべて閉じる</button>
+
+<hr>
+
+<div class="container">
+
+    <!-- 左カラム (スクロール可能なテーブル) -->
+    <div class="scrollable scrollable-left">
+        <!-- 予算データの保存フォーム (既存データの更新・新規追加) -->
+        <form method="post" action="/addbudget/">
+            <input type="hidden" name="csrfmiddlewaretoken" value="kf5eaGbQuPGXTPW8r0SiSLId2KmefPYTA7RIPXXg5hDidnHbKgv5QEOxRKB24wjB">
+            <!-- year_month と account_code_id を hidden で再度持たせる -->
+            <input type="hidden" name="year_month" value="202502">
+            <input type="hidden" name="account_code_id" value="6">
+
+            <table>
+                <tr>
+                    <td colspan="1">前月残高</td>
+                    <td class="text-right">34626684</td>
+                </tr>
+            </table>
+            <a>&nbsp;</a>
+
+            
+            <h2 class="accordion-header" data-target="date_range_1">
+                01日～10日
+                <span class="accordion-icon">▼</span>
+            </h2>
+            <table id="date_range_1" class="hidden">
+
+
+                <!-- 入金 (工事金入金, その他入金) -->
+                <tr class="blue-highlight">
+                    <th colspan="5" class="text-left">= 入 金 =</th>
+                </tr>
+
+                <tr class="highlight no-border">
+                    <th colspan="5" class="text-left">= 工事金入金 =</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+
+                <!-- 未連携(connected_numberなし)データ -->
+                <tbody id="insales_items_1"
+                       ondrop="drop(event, '1', 'insales')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_insales_1">
+                    <td colspan="5" class="text-left">
+                        連携済データ(工事金入金)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_insales_1" class="hidden">
+                    
+                </tbody>
+                <tr class="highlight">
+                    <td>=工事金入金合計=</td>
+                    <td colspan="4" class="text-right"></td>
+                </tr>
+
+
+
+                <tr class="highlight no-border">
+                    <th colspan="5" class="text-left">= その他入金 =</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+
+                <!-- 未連携(connected_numberなし)データ -->
+                <tbody id="inregular_items_1"
+                       ondrop="drop(event, '1', 'inregular')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_inregular_1">
+                    <td colspan="5" class="text-left">
+                        連携済データ(その他入金)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_inregular_1" class="hidden">
+                    
+                    
+                    <tr>
+                        <td class="text-left">[kinpo]振込1 イケダ マサヒロ</td>
+                        <td>3</td>
+                        <td>0</td>
+                        <td class="text-right">31150</td>
+                        <td>
+                            <button class="unlink-button" type="button" onclick="unlinkConnection('fd1fcc83')">解除</button>
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                    <tr>
+                        <td class="text-left">[kinpo]出金 EBフリコミ</td>
+                        <td>3</td>
+                        <td>0</td>
+                        <td class="text-right">6600</td>
+                        <td>
+                            <button class="unlink-button" type="button" onclick="unlinkConnection('c3d1acb3')">解除</button>
+                        </td>
+                    </tr>
+                    
+                    
+                </tbody>
+                <tr class="highlight">
+                    <td>=その他入金合計=</td>
+                    <td colspan="4" class="text-right"></td>
+                </tr>
+
+
+
+                <tr class="blue-highlight">
+                    <td>=入金合計=</td>
+                    <td colspan="4" class="text-right">37750</td>
+                </tr>
+
+
+
+                
+                <!-- 出金 (自動引落, 個別支払) -->
+                <tr class="blue-highlight">
+                    <th colspan="5" class="text-left">= 出 金 =</th>
+                </tr>
+
+                <!-- 自動引落 -->
+                <tr class="no-border">
+                    <th colspan="5" class="text-left">自動引落</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+                <tbody id="auto_items_1"
+                       ondrop="drop(event, '1', 'auto')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_auto_1">
+                    <td colspan="5" class="text-left">
+                        連携済データ(自動引落)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_auto_1" class="hidden">
+                    
+                    
+                    <tr>
+                        <td class="text-left">[kinpo]口座振替4 ミツイスミトモFL(SM</td>
+                        <td>3</td>
+                        <td>0</td>
+                        <td class="text-right">22000</td>
+                        <td>
+                            <button class="unlink-button" type="button" onclick="unlinkConnection('dab60dbb')">解除</button>
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                    <tr>
+                        <td class="text-left">[kinpo]口座振替3 プレミアムカイヒ</td>
+                        <td>3</td>
+                        <td>0</td>
+                        <td class="text-right">22000</td>
+                        <td>
+                            <button class="unlink-button" type="button" onclick="unlinkConnection('1f7a0b78')">解除</button>
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                    <tr>
+                        <td class="text-left">[kinpo]法人IB シヤ)ヒロシマケンロウドウキ</td>
+                        <td>5</td>
+                        <td>0</td>
+                        <td class="text-right">39820</td>
+                        <td>
+                            <button class="unlink-button" type="button" onclick="unlinkConnection('49c5a508')">解除</button>
+                        </td>
+                    </tr>
+                    
+                    
+                </tbody>
+                <tr class="blue2-highlight">
+                    <td>自動引落合計</td>
+                    <td colspan="4" class="text-right">83820</td>
+                </tr>
+
+                <!-- 個別支払 -->
+                <tr class="no-border">
+                    <th colspan="5" class="text-left">個別支払</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+                <tbody id="individual_items_1"
+                       ondrop="drop(event, '1', 'individual')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_individual_1">
+                    <td colspan="5" class="text-left">
+                        連携済データ(個別支払)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_individual_1" class="hidden">
+                    
+                    
+                    <tr>
+                        <td class="text-left">[kinpo]法人IB カ)ロイヤルコ-ポレ-シヨン</td>
+                        <td>5</td>
+                        <td>0</td>
+                        <td class="text-right">68420</td>
+                        <td>
+                                <button class="unlink-button" type="button" onclick="unlinkConnection('b686a362')">解除</button>
+                        </td>
+                    </tr>
+                    
+                    
+                </tbody>
+
+                <tr class="blue-highlight">
+                    <td>=出金合計=</td>
+                    <td colspan="4" class="text-right">152240</td>
+                </tr>
+
+
+                <tr class="highlight no-border">
+                    <th colspan="5" class="text-left">= 預金振替 =</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+
+                <!-- 未連携(connected_numberなし)データ -->
+                <tbody id="fundtrans_items_1"
+                       ondrop="drop(event, '1', 'fundtrans')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_fundtrans_1">
+                    <td colspan="5" class="text-left">
+                        連携済データ(預金振替)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_fundtrans_1" class="hidden">
+                    
+                    
+                    <tr>
+                        <td class="text-left">[kinpo]法人IB ニツト(カ</td>
+                        <td>5</td>
+                        <td>0</td>
+                        <td class="text-right">-100000000</td>
+                        <td>
+                            <button class="unlink-button" type="button" onclick="unlinkConnection('dcbcbf51')">解除</button>
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                    <tr>
+                        <td class="text-left">[kinpo]法人IB ニツト(カ</td>
+                        <td>5</td>
+                        <td>0</td>
+                        <td class="text-right">100000000</td>
+                        <td>
+                            <button class="unlink-button" type="button" onclick="unlinkConnection('5c25b381')">解除</button>
+                        </td>
+                    </tr>
+                    
+                    
+                </tbody>
+                <tr class="highlight">
+                    <td>=預金振替合計=</td>
+                    <td colspan="4" class="text-right"></td>
+                </tr>
+
+
+
+                <tr class="blue-highlight">
+                    <td colspan="2">01日～10日 残高見込</td>
+                    <td colspan="3" class="text-right">34512194</td>
+                </tr>
+                <tr class="blue-highlight">
+                    <td colspan="5">
+                        <!-- DateRangeごとに新規追加ボタン (入金/自動引落/個別支払) -->
+                        <button
+                            type="button"
+                            class="add-button"
+                            onclick="addBudgetItem('income', '1', '202502')">
+                            入金 新規追加
+                        </button>
+    
+                        <button
+                            type="button"
+                            class="add-button"
+                            onclick="addBudgetItem('auto', '1', '202502')">
+                            自動引落 新規追加
+                        </button>
+    
+                        <button
+                            type="button"
+                            class="add-button"
+                            onclick="addBudgetItem('individual', '1', '202502')">
+                            個別支払 新規追加
+                        </button>
+                    </td>
+                </tr>
+            </table>
+
+            <table>
+                <tr>
+                    <td colspan="2">01日～10日 残高見込</td>
+                    <td colspan="3"  class="text-right">34512194</td>
+                </tr>
+            </table>
+            <hr>
+            
+            <h2 class="accordion-header" data-target="date_range_2">
+                11日～20日
+                <span class="accordion-icon">▼</span>
+            </h2>
+            <table id="date_range_2" class="hidden">
+
+
+                <!-- 入金 (工事金入金, その他入金) -->
+                <tr class="blue-highlight">
+                    <th colspan="5" class="text-left">= 入 金 =</th>
+                </tr>
+
+                <tr class="highlight no-border">
+                    <th colspan="5" class="text-left">= 工事金入金 =</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+
+                <!-- 未連携(connected_numberなし)データ -->
+                <tbody id="insales_items_2"
+                       ondrop="drop(event, '2', 'insales')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_insales_2">
+                    <td colspan="5" class="text-left">
+                        連携済データ(工事金入金)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_insales_2" class="hidden">
+                    
+                </tbody>
+                <tr class="highlight">
+                    <td>=工事金入金合計=</td>
+                    <td colspan="4" class="text-right"></td>
+                </tr>
+
+
+
+                <tr class="highlight no-border">
+                    <th colspan="5" class="text-left">= その他入金 =</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+
+                <!-- 未連携(connected_numberなし)データ -->
+                <tbody id="inregular_items_2"
+                       ondrop="drop(event, '2', 'inregular')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_inregular_2">
+                    <td colspan="5" class="text-left">
+                        連携済データ(その他入金)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_inregular_2" class="hidden">
+                    
+                </tbody>
+                <tr class="highlight">
+                    <td>=その他入金合計=</td>
+                    <td colspan="4" class="text-right"></td>
+                </tr>
+
+
+
+                <tr class="blue-highlight">
+                    <td>=入金合計=</td>
+                    <td colspan="4" class="text-right">0</td>
+                </tr>
+
+
+
+                
+                <!-- 出金 (自動引落, 個別支払) -->
+                <tr class="blue-highlight">
+                    <th colspan="5" class="text-left">= 出 金 =</th>
+                </tr>
+
+                <!-- 自動引落 -->
+                <tr class="no-border">
+                    <th colspan="5" class="text-left">自動引落</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+                <tbody id="auto_items_2"
+                       ondrop="drop(event, '2', 'auto')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_auto_2">
+                    <td colspan="5" class="text-left">
+                        連携済データ(自動引落)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_auto_2" class="hidden">
+                    
+                </tbody>
+                <tr class="blue2-highlight">
+                    <td>自動引落合計</td>
+                    <td colspan="4" class="text-right">0</td>
+                </tr>
+
+                <!-- 個別支払 -->
+                <tr class="no-border">
+                    <th colspan="5" class="text-left">個別支払</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+                <tbody id="individual_items_2"
+                       ondrop="drop(event, '2', 'individual')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_individual_2">
+                    <td colspan="5" class="text-left">
+                        連携済データ(個別支払)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_individual_2" class="hidden">
+                    
+                </tbody>
+
+                <tr class="blue-highlight">
+                    <td>=出金合計=</td>
+                    <td colspan="4" class="text-right">0</td>
+                </tr>
+
+
+                <tr class="highlight no-border">
+                    <th colspan="5" class="text-left">= 預金振替 =</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+
+                <!-- 未連携(connected_numberなし)データ -->
+                <tbody id="fundtrans_items_2"
+                       ondrop="drop(event, '2', 'fundtrans')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_fundtrans_2">
+                    <td colspan="5" class="text-left">
+                        連携済データ(預金振替)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_fundtrans_2" class="hidden">
+                    
+                </tbody>
+                <tr class="highlight">
+                    <td>=預金振替合計=</td>
+                    <td colspan="4" class="text-right"></td>
+                </tr>
+
+
+
+                <tr class="blue-highlight">
+                    <td colspan="2">11日～20日 残高見込</td>
+                    <td colspan="3" class="text-right">34512194</td>
+                </tr>
+                <tr class="blue-highlight">
+                    <td colspan="5">
+                        <!-- DateRangeごとに新規追加ボタン (入金/自動引落/個別支払) -->
+                        <button
+                            type="button"
+                            class="add-button"
+                            onclick="addBudgetItem('income', '2', '202502')">
+                            入金 新規追加
+                        </button>
+    
+                        <button
+                            type="button"
+                            class="add-button"
+                            onclick="addBudgetItem('auto', '2', '202502')">
+                            自動引落 新規追加
+                        </button>
+    
+                        <button
+                            type="button"
+                            class="add-button"
+                            onclick="addBudgetItem('individual', '2', '202502')">
+                            個別支払 新規追加
+                        </button>
+                    </td>
+                </tr>
+            </table>
+
+            <table>
+                <tr>
+                    <td colspan="2">11日～20日 残高見込</td>
+                    <td colspan="3"  class="text-right">34512194</td>
+                </tr>
+            </table>
+            <hr>
+            
+            <h2 class="accordion-header" data-target="date_range_3">
+                21日～31日
+                <span class="accordion-icon">▼</span>
+            </h2>
+            <table id="date_range_3" class="hidden">
+
+
+                <!-- 入金 (工事金入金, その他入金) -->
+                <tr class="blue-highlight">
+                    <th colspan="5" class="text-left">= 入 金 =</th>
+                </tr>
+
+                <tr class="highlight no-border">
+                    <th colspan="5" class="text-left">= 工事金入金 =</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+
+                <!-- 未連携(connected_numberなし)データ -->
+                <tbody id="insales_items_3"
+                       ondrop="drop(event, '3', 'insales')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_insales_3">
+                    <td colspan="5" class="text-left">
+                        連携済データ(工事金入金)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_insales_3" class="hidden">
+                    
+                </tbody>
+                <tr class="highlight">
+                    <td>=工事金入金合計=</td>
+                    <td colspan="4" class="text-right"></td>
+                </tr>
+
+
+
+                <tr class="highlight no-border">
+                    <th colspan="5" class="text-left">= その他入金 =</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+
+                <!-- 未連携(connected_numberなし)データ -->
+                <tbody id="inregular_items_3"
+                       ondrop="drop(event, '3', 'inregular')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_inregular_3">
+                    <td colspan="5" class="text-left">
+                        連携済データ(その他入金)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_inregular_3" class="hidden">
+                    
+                </tbody>
+                <tr class="highlight">
+                    <td>=その他入金合計=</td>
+                    <td colspan="4" class="text-right"></td>
+                </tr>
+
+
+
+                <tr class="blue-highlight">
+                    <td>=入金合計=</td>
+                    <td colspan="4" class="text-right">0</td>
+                </tr>
+
+
+
+                
+                <!-- 出金 (自動引落, 個別支払) -->
+                <tr class="blue-highlight">
+                    <th colspan="5" class="text-left">= 出 金 =</th>
+                </tr>
+
+                <!-- 自動引落 -->
+                <tr class="no-border">
+                    <th colspan="5" class="text-left">自動引落</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+                <tbody id="auto_items_3"
+                       ondrop="drop(event, '3', 'auto')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_auto_3">
+                    <td colspan="5" class="text-left">
+                        連携済データ(自動引落)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_auto_3" class="hidden">
+                    
+                </tbody>
+                <tr class="blue2-highlight">
+                    <td>自動引落合計</td>
+                    <td colspan="4" class="text-right">0</td>
+                </tr>
+
+                <!-- 個別支払 -->
+                <tr class="no-border">
+                    <th colspan="5" class="text-left">個別支払</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+                <tbody id="individual_items_3"
+                       ondrop="drop(event, '3', 'individual')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_individual_3">
+                    <td colspan="5" class="text-left">
+                        連携済データ(個別支払)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_individual_3" class="hidden">
+                    
+                </tbody>
+
+                <tr class="blue-highlight">
+                    <td>=出金合計=</td>
+                    <td colspan="4" class="text-right">0</td>
+                </tr>
+
+
+                <tr class="highlight no-border">
+                    <th colspan="5" class="text-left">= 預金振替 =</th>
+                </tr>
+                <colgroup>
+                    <col class="name-col">
+                    <col class="date-col">
+                    <col class="number-col">
+                    <col class="ammount-col">
+                    <col class="connect-col">
+                </colgroup>                
+                <tr class="blue2-highlight">
+                    <th>相手先</th>
+                    <th>日付</th>
+                    <th>番号</th>
+                    <th>見込/実際</th>
+                    <th>連結</th>
+                </tr>
+
+                <!-- 未連携(connected_numberなし)データ -->
+                <tbody id="fundtrans_items_3"
+                       ondrop="drop(event, '3', 'fundtrans')"
+                       ondragover="allowDrop(event)">
+                    <!-- 新規データ入力用 -->
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#ccc;">
+                            ドラッグ&ドロップで新しいデータを追加してください
+                        </td>
+                    </tr>
+                    
+                    
+                    
+                </tbody>
+                <tr class="accordion-header" data-target="connected_fundtrans_3">
+                    <td colspan="5" class="text-left">
+                        連携済データ(預金振替)
+                        <span class="accordion-icon">▼</span>
+                    </td>
+                </tr>
+                <tbody id="connected_fundtrans_3" class="hidden">
+                    
+                </tbody>
+                <tr class="highlight">
+                    <td>=預金振替合計=</td>
+                    <td colspan="4" class="text-right"></td>
+                </tr>
+
+
+
+                <tr class="blue-highlight">
+                    <td colspan="2">21日～31日 残高見込</td>
+                    <td colspan="3" class="text-right">34512194</td>
+                </tr>
+                <tr class="blue-highlight">
+                    <td colspan="5">
+                        <!-- DateRangeごとに新規追加ボタン (入金/自動引落/個別支払) -->
+                        <button
+                            type="button"
+                            class="add-button"
+                            onclick="addBudgetItem('income', '3', '202502')">
+                            入金 新規追加
+                        </button>
+    
+                        <button
+                            type="button"
+                            class="add-button"
+                            onclick="addBudgetItem('auto', '3', '202502')">
+                            自動引落 新規追加
+                        </button>
+    
+                        <button
+                            type="button"
+                            class="add-button"
+                            onclick="addBudgetItem('individual', '3', '202502')">
+                            個別支払 新規追加
+                        </button>
+                    </td>
+                </tr>
+            </table>
+
+            <table>
+                <tr>
+                    <td colspan="2">21日～31日 残高見込</td>
+                    <td colspan="3"  class="text-right">34512194</td>
+                </tr>
+            </table>
+            <hr>
+            
+
+            <!-- 全データ一括で保存ボタン -->
+            <button type="submit">保存</button>
+        </form>
+    </div>
+
+
+    <div class="mini-table-container">
+        <h3>連結</h3>
+        <table>
+            <tr><th>連結</th></tr>
+            <tr><td>&nbsp;</td></tr>
+        </table>
+    </div>
+
+
+    <!-- 右カラム (銀行データ) -->
+    <div  class="scrollable scrollable-right">
+        <h3>銀行データ</h3>
+<!-- 入金データを表示 -->
+<h3>入金</h3>
+<table>
+    <tr>
+        <th>日付</th>
+        <th>項目</th>
+        <th>金額</th>
+        <th>操作</th>
+    </tr>
+    
+</table>
+
+<!-- 出金データを表示 -->
+<h3>出金</h3>
+<table>
+    <tr>
+        <th>日付</th>
+        <th>項目</th>
+        <th>金額</th>
+        <th>操作</th>
+    </tr>
+    
+</table>
+
+    </tr>
+    
+    </div>
+</div>
+
+<script>
+/* CSRFトークンの取得 */
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+
+/* ドラッグ&ドロップ開始時 */
+function dragStart(event) {
+    const row = event.currentTarget;
+    const transactionType = row.dataset.transactionType || "出金";
+
+    // デバッグ: data-date の確認
+    console.log("🔍 row.dataset:", row.dataset);
+    console.log("📅 取得した data-date:", row.dataset.date); // ここで値を確認
+
+    // 日付を取得して日（day）のみを抽出
+    const fullDate = row.dataset.date || ""; // 例: "2025-02-25"
+    const dateParts = fullDate.split("-"); // ["2025", "02", "25"]
+    const day_num = dateParts.length === 3 ? dateParts[2] : ""; // "25" を取得
+
+    console.log("📆 取得した fullDate:", fullDate);
+    console.log("📅 抽出した day_num:", day_num);
+
+    event.dataTransfer.setData("id", row.dataset.id);
+    event.dataTransfer.setData("name", row.dataset.name);
+    event.dataTransfer.setData("amount", row.dataset.amount);
+    event.dataTransfer.setData("transaction_type", transactionType);
+    event.dataTransfer.setData("connected_number", row.dataset.connected_number || "");
+    event.dataTransfer.setData("day_num", day_num);
+}
+
+
+/* ドロップ先が受け取れるようにする */
+function allowDrop(event) {
+    event.preventDefault();
+}
+
+/**
+ * ドロップ直後にAjaxを投げて銀行データとの連携まで行う
+ */
+function drop(event, dateRangeId, itemType) {
+    event.preventDefault();
+    const itemId = event.dataTransfer.getData("id");
+    const itemName = event.dataTransfer.getData("name");
+    let amount = event.dataTransfer.getData("amount");
+    const transactionType = event.dataTransfer.getData("transaction_type") || "出金";
+    const connected_number = event.dataTransfer.getData("connected_number");
+    const day_num = event.dataTransfer.getData("day_num");
+
+    // 既に連結されている銀行データならエラー
+    if (connected_number && connected_number !== "None" && connected_number !== "") {
+        alert(`このデータは既に連結されています（番号:${connected_number}）。`);
+        return;
+    }
+
+    // 入金・出金の種別が正しいドロップ先か確認
+    const isValidDrop = (transactionType === "入金" && (itemType === "insales" || itemType === "inregular" || itemType === "fundtrans"))
+                 || (transactionType === "出金" && (itemType === "auto" || itemType === "individual" || itemType === "fundtrans"));
+
+    if (!isValidDrop) {
+        alert(`この取引は追加できません。(取引種別: ${transactionType})`);
+        return;
+    }
+
+    // 預金振替での出金の場合は金額をマイナスにする
+    const withdrawal = (transactionType === "出金" && itemType === "fundtrans");
+    if (withdrawal) {
+        amount = Number(amount) * -1;
+    }
+
+    // 画面上のテーブルにも行を追加して見た目を更新（暫定）
+    const tbody = document.getElementById(`${itemType}_items_${dateRangeId}`);
+    if (tbody) {
+        const newRow = tbody.insertRow();
+        newRow.innerHTML = `
+            <td class="text-left">${itemName}</td>
+            <td>${day_num}</td>
+            <td>0</td>
+            <td class="text-right"><input type="number" value="${amount}" class="text-right"></td>
+            <td></td>
+        `;
+    }
+
+    // Ajaxでサーバーへ連携依頼
+    fetch("/addbudget_item/", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrftoken
+        },
+        body: JSON.stringify({
+            from_dragdrop: true,
+            item_id: itemId,         // BankDataの主キー
+            bank_id: itemId,         // 同じく bank_id として使う
+            item_name: itemName,
+            amount: amount,
+            day_num:day_num,
+            transaction_type: transactionType,
+            daterange_id: dateRangeId,
+            itemtype: itemType,      // "income" / "auto" / "individual"
+            year_month: "202502",
+            account_code_id: "6"
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === "success") {
+            console.log("連携成功:", data.message);
+            // Ajax通信成功 -> ここで手動リロード
+            window.location.reload(); 
+        } else {
+            console.error("連携エラー:", data.message);
+            alert("連携エラー: " + data.message);
+        }
+    })
+    .catch(error => console.error("通信エラー:", error));
+}
+
+/* 新規追加ボタン（画面に行を追加するだけ・サーバー送信は保存ボタン時） */
+function addBudgetItem(itemType, dateRangeId, yearMonth) {
+    let tbodyId;
+    let itemTypeValue;
+
+    if (itemType === 'insales') {
+        tbodyId = 'insales_items_' + dateRangeId;
+        itemTypeValue = "工事金入金";
+    } else if (itemType === 'inregular') {
+        tbodyId = 'inregular_items_' + dateRangeId;
+        itemTypeValue = "その他入金";
+    } else if (itemType === 'auto') {
+        tbodyId = 'auto_items_' + dateRangeId;
+        itemTypeValue = "自動引落";
+    } else if (itemType === 'individual') {
+        tbodyId = 'individual_items_' + dateRangeId;
+        itemTypeValue = "個別支払";
+
+    } else if (itemType === 'fundtrans') {
+        tbodyId = 'fundtrans_items_' + dateRangeId;
+        itemTypeValue = "預金振替";
+    }
+
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+
+    const newRow = tbody.insertRow();
+    const prefix = dateRangeId + '_' + itemType + '_new';
+    newRow.innerHTML = `
+        <td><input type="text" name="item_name_${prefix}" placeholder="相手先"></td>
+        <td><input type="number" name="sort_no1_${prefix}" value="0" style="width:50px;"></td>
+        <td><input type="number" name="sort_no2_${prefix}" value="0" style="width:50px;"></td>
+        <td><input type="number" name="amount_${prefix}" value="0" class="text-right"></td>
+        <td></td>
+        <td></td>
+
+        <input type="hidden" name="itemtype_${prefix}" value="${itemTypeValue}">
+        <input type="hidden" name="daterange_${prefix}" value="${dateRangeId}">
+        <input type="hidden" name="year_month_${prefix}" value="${yearMonth}">
+        <input type="hidden" name="actual_${prefix}" value="False">
+    `;
+}
+
+
+
+
+function unlinkConnection(connectedNumber) {
+    if (!confirm("本当に連結を解除しますか？")) {
+        return;
+    }
+
+    fetch("/unlink_connection/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie('csrftoken')
+        },
+        body: JSON.stringify({ connected_number: connectedNumber })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === "success") {
+            alert("連結を解除しました");
+            window.location.reload(); // F5と同じ挙動
+        } else {
+            alert("連結解除に失敗しました: " + data.message);
+        }
+    })
+    .catch(error => console.error("エラー:", error));
+}
+
+//----------------------------------------------------------------------------------------------
+
+
+
+//-----------------------------------------------
+/* 個別のアコーディオン開閉（クリック対応） */
+//-----------------------------------------------
+
+function toggleAccordion(elementId) {
+    const elem = document.getElementById(elementId);
+    if (!elem) return;
+
+    // 開閉を切り替え
+    elem.classList.toggle('hidden');
+
+    // 対応するヘッダー要素（.accordion-header）を探してアイコンを更新
+    const header = document.querySelector(`.accordion-header[data-target="${elementId}"]`);
+    if (header) {
+        const icon = header.querySelector('.accordion-icon');
+        if (icon) {
+            // 開いていれば '▲'、閉じていれば '▼'
+            icon.textContent = elem.classList.contains('hidden') ? '▼' : '▲';
+        }
+    }
+
+    // ローカルストレージに保存
+    const accordions = JSON.parse(localStorage.getItem('accordions')) || {};
+    // true => 開いている、false => 閉じている
+    accordions[elementId] = !elem.classList.contains('hidden');
+    localStorage.setItem('accordions', JSON.stringify(accordions));
+}
+
+/* すべてのアコーディオンを開く */
+function openAllAccordions() {
+    // 開閉対象となる要素を一括取得 (例: tbody, table)
+    document.querySelectorAll('tbody.hidden, table.hidden').forEach(element => {
+        // hiddenクラスを外す => 全部開く
+        element.classList.remove('hidden');
+
+        // data-target="element.id" のヘッダーを探してアイコンを▲に
+        const header = document.querySelector(`.accordion-header[data-target="${element.id}"]`);
+        if (header) {
+            const icon = header.querySelector('.accordion-icon');
+            if (icon) icon.textContent = '▲';
+        }
+    });
+    saveAllAccordionState(true);
+}
+
+/* すべてのアコーディオンを閉じる */
+function closeAllAccordions() {
+    document.querySelectorAll('tbody, table').forEach(element => {
+        // hiddenクラスを付ける => 全部閉じる
+        element.classList.add('hidden');
+
+        // data-target="element.id" のヘッダーを探してアイコンを▼に
+        const header = document.querySelector(`.accordion-header[data-target="${element.id}"]`);
+        if (header) {
+            const icon = header.querySelector('.accordion-icon');
+            if (icon) icon.textContent = '▼';
+        }
+    });
+    saveAllAccordionState(false);
+}
+
+/* すべてのアコーディオン状態を保存 */
+function saveAllAccordionState(isOpen) {
+    const accordions = {};
+    document.querySelectorAll('tbody, table').forEach(element => {
+        // isOpen = true ならすべて開き、false ならすべて閉じる
+        accordions[element.id] = isOpen;
+    });
+    localStorage.setItem('accordions', JSON.stringify(accordions));
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    // 1) まずアコーディオンの開閉状態を復元
+    const accordions = JSON.parse(localStorage.getItem('accordions')) || {};
+    document.querySelectorAll('tbody, table').forEach(element => {
+        if (accordions[element.id] !== undefined) {
+            const shouldOpen = accordions[element.id];
+            element.classList.toggle('hidden', !shouldOpen);
+            
+            // ヘッダーを探してアイコン反映
+            const header = document.querySelector(`.accordion-header[data-target="${element.id}"]`);
+            if (header) {
+                const icon = header.querySelector('.accordion-icon');
+                if (icon) icon.textContent = shouldOpen ? '▲' : '▼';
+            }
+        }
+    });
+
+    // 2) アコーディオンヘッダーのクリックイベントを設定
+    document.querySelectorAll('.accordion-header').forEach(header => {
+        header.addEventListener('click', function () {
+            const targetId = header.getAttribute('data-target');
+            toggleAccordion(targetId);
+        });
+    });
+
+    // 3) 左側スクロール位置の復元
+    const scrollableLeft = document.querySelector('.scrollable-left');
+    if (scrollableLeft) {
+        // ローカルストレージから数値を取り出す
+        const savedLeftPos = localStorage.getItem("scrollLeftPos");
+        if (savedLeftPos !== null) {
+            console.log("スクロール復元:", savedLeftPos);
+            scrollableLeft.scrollTop = parseInt(savedLeftPos, 10);
+        }
+        // ユーザーがスクロールするたびに位置を保存
+        scrollableLeft.addEventListener("scroll", function() {
+            localStorage.setItem("scrollLeftPos", scrollableLeft.scrollTop);
+        });
+    }
+
+    // 4) 隠し要素 amount_fundtrans をチェックしてアラート
+    const amount = document.getElementById("amount_fundtrans").value;
+    if (amount !== "0") {
+        alert("振替の合計が一致していません！");
+    }
+});
+
+
+</script>
+</body>
+</html>
