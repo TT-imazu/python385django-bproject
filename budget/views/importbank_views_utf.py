@@ -82,4 +82,4 @@ def importbank(request):
 
         return redirect("importbank")
 
-    return render(request, 'importbank.html')
+    return render(request, 'budget/importbank.html')

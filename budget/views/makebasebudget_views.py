@@ -60,8 +60,8 @@ def upload_basebudget(request):
             return redirect('success_page')  # 完了ページや元画面へ
     else:
         form = CSVUploadForm()
-    return render(request, 'upload_basebudget.html', {'form': form})
+    return render(request, 'budget/upload_basebudget.html', {'form': form})
 
 
 def upload_success(request):
-    return render(request, 'upload_success.html')
+    return render(request, 'budget/upload_success.html')

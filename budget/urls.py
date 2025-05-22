@@ -1,16 +1,12 @@
 from django.urls import path
-#from .views import budget_connectbank, connect_data, delete_connect
-from .views.connectbank_views import connectbank, connect_connectbank, delete_connectbank
-from .views.addbudget_views import addbudget, addbudget_item
-from .views.importbank_views import importbank
-from .views.sortbank_views import sortbank
-
-from .views.generatebudget_views import generatebudget
-
-from django.urls import path
-from .views.addbudget_views import addbudget, addbudget_item, unlink_connection
-from .views.makebasebudget_views import download_budget, upload_basebudget, upload_success
-from .views.connectbank_1to1_views import connectbank_1to1, connect_connectbank_1to1
+from .views import (
+    connectbank, connect_connectbank, delete_connectbank,
+    addbudget, addbudget_item, unlink_connection,
+    importbank, sortbank, generatebudget,
+    download_budget, upload_basebudget, upload_success,
+    connectbank_1to1, connect_connectbank_1to1,
+    multibank, delete_budget_item
+)
 
 urlpatterns = [
     path('connectbank/', connectbank, name='connectbank'),
@@ -26,6 +22,8 @@ urlpatterns = [
     path('download_budget/', download_budget, name='download_budget'),
     path('upload_basebudget/', upload_basebudget, name='upload_basebudget'),
     path('upload_success/', upload_success, name='upload_success'),
+    path('multibank/', multibank, name='multibank'),
     path('connectbank_1to1/', connectbank_1to1, name='connectbank_1to1'),
     path('connectbank_1to1/connect/', connect_connectbank_1to1, name='connect_connectbank_1to1'),
+    path('delete_budget_item/', delete_budget_item, name='delete_budget_item'),
 ]

@@ -304,7 +304,7 @@ def addbudget(request):
         "date_ranges_all": date_ranges_all,
         "amount_fundtrans": amount_fundtrans,
     }
-    return render(request, 'addbudget.html', context)
+    return render(request, 'budget/addbudget.html', context)
 
 
 @login_required
@@ -451,3 +451,46 @@ def unlink_connection(request):
             return JsonResponse({"status": "error", "message": str(e)})
 
     return JsonResponse({"status": "error", "message": "無効なリクエスト"})
+
+@csrf_exempt
+@login_required
+def delete_budget_item(request):
+    """予算項目を削除するAPI"""
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            budget_id = data.get("budget_id")
+            
+            # 予算項目の取得
+            budget_item = Budget.objects.get(id=budget_id)
+            
+            # 連結済みの場合は削除不可
+            if budget_item.connected_number:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "連結済みの項目は削除できません。先に連結を解除してください。"
+                })
+            
+            # 削除実行
+            budget_item.delete()
+            
+            return JsonResponse({
+                "status": "success",
+                "message": "予算項目を削除しました"
+            })
+            
+        except Budget.DoesNotExist:
+            return JsonResponse({
+                "status": "error",
+                "message": "指定された予算項目が見つかりません"
+            })
+        except Exception as e:
+            return JsonResponse({
+                "status": "error",
+                "message": str(e)
+            })
+    
+    return JsonResponse({
+        "status": "error",
+        "message": "無効なリクエストです"
+    })

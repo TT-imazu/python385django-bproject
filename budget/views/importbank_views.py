@@ -13,18 +13,37 @@ def importbank(request):
         data_str = f"{date}{item_name}{amount}{account_code_str}{no}"
         return hashlib.sha256(data_str.encode()).hexdigest()
 
-    # 2. AccountCode 取得/作成関数 (変更なし)
+    # 2. AccountCode 取得/作成関数
     def get_or_create_account_code(bank_name, branch_name, account_number, deposit_type):
-        # ... (省略 - 以前のコードと同じ) ...
+        # 銀行コードのマッピング
+        bank_code_mapping = {
+            'もみじ銀行': 'momiji',
+            '広島銀行': 'hiroshima',
+            '三菱UFJ銀行': 'mufj',
+            '山陰合同銀行': 'sanin',
+            '中国銀行': 'chugoku',
+        }
+        
+        # 銀行名から正しい銀行コードを取得
+        base_bank_code = bank_code_mapping.get(bank_name)
+        if not base_bank_code:
+            raise ValueError(f"未知の銀行名です: {bank_name}")
+        
+        # 口座種別のコード化
+        deposit_code = "1" if deposit_type == "当座" else "2"
+        
+        # 完全な口座コードの生成（例：momiji_1_123456）
+        full_bank_code = f"{base_bank_code}_{deposit_code}_{account_number}"
+        
         try:
             account_code = AccountCode.objects.get(
-                bank_code=bank_name,
+                bank_code=full_bank_code,
                 deposit_type=deposit_type,
                 account_number=account_number,
             )
         except AccountCode.DoesNotExist:
             account_code = AccountCode.objects.create(
-                bank_code=bank_name,
+                bank_code=full_bank_code,
                 deposit_type=deposit_type,
                 account_number=account_number,
             )
@@ -97,4 +116,4 @@ def importbank(request):
 
         return redirect("importbank")
 
-    return render(request, 'importbank.html')
+    return render(request, 'budget/importbank.html')

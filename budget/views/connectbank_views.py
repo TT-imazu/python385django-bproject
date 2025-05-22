@@ -311,7 +311,7 @@ def connectbank(request):
         "date_ranges_all": date_ranges_all,
         "amount_fundtrans": amount_fundtrans,
     }
-    return render(request, 'connectbank.html', context)
+    return render(request, 'budget/connectbank.html', context)
 
 
 @csrf_exempt

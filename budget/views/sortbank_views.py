@@ -147,8 +147,8 @@ def sortbank(request):
     budget_data = {}
     tmp_prev_balance = prev_balance
 
-    print('id',selected_daterange.id)
     if selected_daterange:
+        print('id', selected_daterange.id)
         date_ranges = [selected_daterange]  # リスト化する（for ループで使いやすい形に）
     else:
         date_ranges = DateRange.objects.all()
@@ -211,7 +211,7 @@ def sortbank(request):
     #    "account_codes": AccountCode.objects.all(),
     #    "date_ranges": DateRange.objects.all(),  # テンプレートで選択肢表示用
     #})
-    return render(request, 'sortbank.html', {
+    return render(request, 'budget/sortbank.html', {
         "budget_data": budget_data,
         "bank_data": bank_data_qs,
         "year_month": selected_year_month,

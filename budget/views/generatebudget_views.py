@@ -18,4 +18,4 @@ def generatebudget(request):
     else:
         form = BudgetGenerationForm()
 
-    return render(request, "generatebudget.html", {"form": form})
+    return render(request, "budget/generatebudget.html", {"form": form})

@@ -1,0 +1,88 @@
+.multibank-table {
+    width: 100%;
+    margin-bottom: 1rem;
+    background-color: transparent;
+    font-size: 14px;
+}
+
+.multibank-table th,
+.multibank-table td {
+    padding: 0.75rem;
+    vertical-align: middle;
+    border: 1px solid #dee2e6;
+}
+
+.multibank-table th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+}
+
+.section-header {
+    background-color: #e9ecef;
+    cursor: pointer;
+}
+
+.section-header:hover {
+    background-color: #dee2e6;
+}
+
+.section-header td {
+    font-weight: bold;
+}
+
+.detail-row {
+    background-color: #f8f9fa;
+}
+
+.detail-row td {
+    padding-left: 20px !important;
+}
+
+.text-right {
+    text-align: right !important;
+}
+
+.pl-3 {
+    padding-left: 1rem;
+}
+
+.bg-warning {
+    background-color: #fff3cd !important;
+}
+
+/* アコーディオンのアニメーション */
+.collapse {
+    transition: all 0.3s ease;
+}
+
+/* 金額のフォーマット */
+.amount {
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+/* アコーディオンのアイコン */
+.section-header::after {
+    content: '▼';
+    float: right;
+    margin-right: 10px;
+}
+
+.section-header[aria-expanded="true"]::after {
+    content: '▲';
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+    .multibank-table {
+        display: block;
+        overflow-x: auto;
+        font-size: 12px;
+    }
+    
+    .multibank-table th,
+    .multibank-table td {
+        min-width: 120px;
+        padding: 4px !important;
+    }
+} 

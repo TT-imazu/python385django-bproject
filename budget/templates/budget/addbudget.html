@@ -121,14 +121,64 @@
             display: none;
         }
 
-    /* テーブルの列幅調整 */
-    table col.date-col { width: 5%; }  /* 日付 */
-    table col.number-col { width: 5%; } /* 番号 */
-    table col.ammount-col { width: 30%; } /* 実際 */
-    table col.name-col { width: 45%; } /* 相手先は自動調整 */
-    table col.connect-col { width: 15%; } /* 連結 */
+        /* テーブルの列幅調整 */
+        table col.date-col { width: 5%; }  /* 日付 */
+        table col.number-col { width: 5%; } /* 番号 */
+        table col.ammount-col { width: 30%; } /* 実際 */
+        table col.name-col { width: 45%; } /* 相手先は自動調整 */
+        table col.connect-col { width: 15%; } /* 連結 */
+        
+        /* 銀行データ表示用のスタイル */
+        .bank-data-cell {
+            padding: 5px;
+            min-height: 60px;
+            vertical-align: top;
+        }
+        .bank-data-item {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 5px;
+            margin-bottom: 5px;
+            background-color: #f9f9f9;
+        }
+        .bank-data-item.income {
+            background-color: #e8f5e9; /* 入金は薄い緑 */
+        }
+        .bank-data-item.withdrawal {
+            background-color: #ffebee; /* 出金は薄い赤 */
+        }
+        .bank-data-amount {
+            font-weight: bold;
+            text-align: right;
+        }
+        .unlink-button {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 3px;
+        }
+        .unlink-button:hover {
+            background-color: #d32f2f;
+        }
 
-
+        /* 削除ボタンのスタイル */
+        .delete-button {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 3px;
+        }
+        .delete-button:hover {
+            background-color: #c82333;
+        }
     </style>
 </head>
 <body>
@@ -273,7 +323,9 @@
                                    class="text-right"
                                    style="width:150px;">
                         </td>
-                        <td>&nbsp;</td>
+                        <td>
+                            <button class="delete-button" type="button" onclick="deleteBudgetItem('{{ item.id }}')">削除</button>
+                        </td>
                     </tr>
                     {% endif %}
                     {% endfor %}
@@ -359,7 +411,9 @@
                                    class="text-right"
                                    style="width:150px;">
                         </td>
-                        <td>&nbsp;</td>
+                        <td>
+                            <button class="delete-button" type="button" onclick="deleteBudgetItem('{{ item.id }}')">削除</button>
+                        </td>
                     </tr>
                     {% endif %}
                     {% endfor %}
@@ -456,7 +510,9 @@
                                    class="text-right"
                                    style="width:150px;">
                         </td>
-                        <td>&nbsp;</td>
+                        <td>
+                            <button class="delete-button" type="button" onclick="deleteBudgetItem('{{ item.id }}')">削除</button>
+                        </td>
                     </tr>
                     {% endif %}
                     {% endfor %}
@@ -537,7 +593,9 @@
                                    class="text-right"
                                    style="width:150px;">
                         </td>
-                        <td>&nbsp;</td>
+                        <td>
+                            <button class="delete-button" type="button" onclick="deleteBudgetItem('{{ item.id }}')">削除</button>
+                        </td>
                     </tr>
                     {% endif %}
                     {% endfor %}
@@ -626,7 +684,9 @@
                                    class="text-right"
                                    style="width:150px;">
                         </td>
-                        <td>&nbsp;</td>
+                        <td>
+                            <button class="delete-button" type="button" onclick="deleteBudgetItem('{{ item.id }}')">削除</button>
+                        </td>
                     </tr>
                     {% endif %}
                     {% endfor %}
@@ -670,8 +730,15 @@
                         <button
                             type="button"
                             class="add-button"
-                            onclick="addBudgetItem('income', '{{ dr.id }}', '{{ year_month }}')">
-                            入金 新規追加
+                            onclick="addBudgetItem('insales', '{{ dr.id }}', '{{ year_month }}')">
+                            工事金入金 新規追加
+                        </button>
+    
+                        <button
+                            type="button"
+                            class="add-button"
+                            onclick="addBudgetItem('inregular', '{{ dr.id }}', '{{ year_month }}')">
+                            その他入金 新規追加
                         </button>
     
                         <button
@@ -716,78 +783,61 @@
 
 
     <!-- 右カラム (銀行データ) -->
-    <div  class="scrollable scrollable-right">
+    <div class="scrollable scrollable-right">
         <h3>銀行データ</h3>
-<!-- 入金データを表示 -->
-<h3>入金</h3>
-<table>
-    <tr>
-        <th>日付</th>
-        <th>項目</th>
-        <th>金額</th>
-        <th>操作</th>
-    </tr>
-    {% for bank in bank_data %}
-        {% if bank.transaction_type == "入金" %}
-        <tr draggable="true"
-            ondragstart="dragStart(event)"
-            data-id="{{ bank.bank_id }}"
-            data-name="{{ bank.item_name }}"
-            data-amount="{{ bank.amount }}"
-            data-transaction-type="{{ bank.transaction_type }}"
-            data-connected_number="{{ bank.connected_number|default_if_none:'' }}"
-            data-date="{{ bank.date|date:'Y-m-d' }}">
-            <td>{{ bank.date|date:"Y-m-d" }} {{ bank.transaction_type }}</td>
-            <td>{{ bank.item_name }}</td>
-            <td>{{ bank.amount }}</td>
-            <td>
-                {% if bank.connected_number %}
-                    <button class="unlink-button" onclick="unlinkConnection('{{ bank.connected_number }}')">連結解除</button>
-                {% else %}
-                    &nbsp;
+        <!-- 入金データを表示 -->
+        <h3>入金</h3>
+        <table>
+            <tr>
+                <th>日付</th>
+                <th>項目</th>
+                <th>金額</th>
+                <th>操作</th>
+            </tr>
+            {% for bank in bank_data %}
+                {% if bank.transaction_type == "入金" and bank.account_code and selected_account_code and bank.account_code.id == selected_account_code.id %}
+                <tr draggable="true" ondragstart="dragStart(event)" data-id="{{ bank.bank_id }}"  data-name="{{ bank.item_name }}" data-amount="{{ bank.amount }}" data-transaction-type="{{ bank.transaction_type }}" data-connected_number="{{ bank.connected_number|default_if_none:'' }}" data-date="{{ bank.date|date:'Y-m-d' }}">
+                    <td>{{ bank.date|date:"Y-m-d" }} {{ bank.transaction_type }}</td>
+                    <td>{{ bank.item_name }}</td>
+                    <td>{{ bank.amount }}</td>
+                    <td>
+                        {% if bank.connected_number %}
+                            <button class="unlink-button" onclick="unlinkConnection('{{ bank.connected_number }}')">連結解除</button>
+                        {% else %}
+                         
+                        {% endif %}
+                    </td>
+                </tr>
                 {% endif %}
-            </td>
-        </tr>
-        {% endif %}
-    {% endfor %}
-</table>
+            {% endfor %}
+        </table>
 
-<!-- 出金データを表示 -->
-<h3>出金</h3>
-<table>
-    <tr>
-        <th>日付</th>
-        <th>項目</th>
-        <th>金額</th>
-        <th>操作</th>
-    </tr>
-    {% for bank in bank_data %}
-        {% if bank.transaction_type == "出金" %}
-        <tr draggable="true"
-            ondragstart="dragStart(event)"
-            data-id="{{ bank.bank_id }}"
-            data-name="{{ bank.item_name }}"
-            data-amount="{{ bank.amount }}"
-            data-transaction-type="{{ bank.transaction_type }}"
-            data-connected_number="{{ bank.connected_number|default_if_none:'' }}"
-            data-date="{{ bank.date|date:'Y-m-d' }}">
-            <td>{{ bank.date|date:"Y-m-d" }} {{ bank.transaction_type }}</td>
-            <td>{{ bank.item_name }}</td>
-            <td>{{ bank.amount }}</td>
-            <td>
-                {% if bank.connected_number %}
-                    <button class="unlink-button" onclick="unlinkConnection('{{ bank.connected_number }}')">連結解除</button>
-                {% else %}
-                    &nbsp;
+        <!-- 出金データを表示 -->
+        <h3>出金</h3>
+        <table>
+            <tr>
+                <th>日付</th>
+                <th>項目</th>
+                <th>金額</th>
+                <th>操作</th>
+            </tr>
+            {% for bank in bank_data %}
+                {% if bank.transaction_type == "出金" and bank.account_code and selected_account_code and bank.account_code.id == selected_account_code.id %}
+                <tr draggable="true" ondragstart="dragStart(event)" data-id="{{ bank.bank_id }}"  data-name="{{ bank.item_name }}" data-amount="{{ bank.amount }}" data-transaction-type="{{ bank.transaction_type }}" data-connected_number="{{ bank.connected_number|default_if_none:'' }}" data-date="{{ bank.date|date:'Y-m-d' }}">
+                    <td>{{ bank.date|date:"Y-m-d" }} {{ bank.transaction_type }}</td>
+                    <td>{{ bank.item_name }}</td>
+                    <td>{{ bank.amount }}</td>
+                    <td>
+                        {% if bank.connected_number %}
+                            <button class="unlink-button" onclick="unlinkConnection('{{ bank.connected_number }}')">連結解除</button>
+                        {% else %}
+                             
+                        {% endif %}
+                    </td>
+                </tr>
                 {% endif %}
-            </td>
-        </tr>
-        {% endif %}
-    {% endfor %}
-</table>
-
-    </tr>
-    
+            {% endfor %}
+        </table>
     </div>
 </div>
 
@@ -993,7 +1043,29 @@ function unlinkConnection(connectedNumber) {
     .catch(error => console.error("エラー:", error));
 }
 
+function deleteBudgetItem(budgetId) {
+    if (!confirm("この予算項目を削除してもよろしいですか？")) {
+        return;
+    }
 
+    fetch("{% url 'delete_budget_item' %}", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie('csrftoken')
+        },
+        body: JSON.stringify({ budget_id: budgetId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === "success") {
+            window.location.reload();
+        } else {
+            alert("削除に失敗しました: " + data.message);
+        }
+    })
+    .catch(error => console.error("エラー:", error));
+}
 
 //-----------------------------------------------
 /* 個別のアコーディオン開閉（クリック対応） */

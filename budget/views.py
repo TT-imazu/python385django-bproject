@@ -1,1 +1,0 @@
-from .views.connectbank_views import connectbank

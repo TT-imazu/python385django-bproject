@@ -1,0 +1,492 @@
+{% extends 'budget/base.html' %}
+{% load static %}
+{% load humanize %}
+{% load dict_extras %}
+
+{% block title %}複数銀行予算比較{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>複数銀行予算比較</h2>
+    
+    <!-- 年月選択フォーム -->
+    <form method="get" class="mb-4">
+        <div class="row">
+            <div class="col-md-4">
+                <input type="month" name="year_month" value="{{ year_month }}" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary">表示</button>
+            </div>
+        </div>
+    </form>
+
+    <!-- コントロールボタン -->
+    <div class="control-buttons mb-3">
+        <button onclick="openAllDetails()" class="btn btn-secondary">すべて開く</button>
+        <button onclick="closeAllDetails()" class="btn btn-secondary">すべて閉じる</button>
+    </div>
+
+    {% for dr in date_ranges %}
+    <div class="accordion-header" data-target="date_range_{{ dr.id }}">
+        {{ dr.name }} ({{ dr.start_day }}日～{{ dr.end_day }}日)
+        <span class="accordion-icon">▼</span>
+    </div>
+    <div id="date_range_{{ dr.id }}" class="{% if not forloop.first %}hidden{% endif %}">
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th style="width: 15%;">項目</th>
+                    {% for account_code in account_codes %}
+                    <th>
+                        {{ account_code.bank_code }}<br>
+                        {{ account_code.deposit_type }}<br>
+                        {{ account_code.account_number }}
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 前月残高 -->
+                <tr>
+                    <td class="text-left">前月残高</td>
+                    {% for account_code in account_codes %}
+                    <td class="text-right">
+                        {{ budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'prev_balance'|intcomma }}
+                    </td>
+                    {% endfor %}
+                </tr>
+
+                <!-- 収入 -->
+                <tr class="accordion-header" data-target="income_{{ dr.id }}">
+                    <td class="text-left">収入</td>
+                    {% for account_code in account_codes %}
+                    <td class="text-right">
+                        {{ budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'total_income'|intcomma }}
+                    </td>
+                    {% endfor %}
+                </tr>
+                <tbody id="income_{{ dr.id }}" class="hidden">
+                    <!-- 工事金入金（連結済） -->
+                    <tr class="accordion-header" data-target="insales_connected_{{ dr.id }}">
+                        <td class="text-left">工事金入金（連結済）</td>
+                        {% for account_code in account_codes %}
+                        <td class="text-right">
+                            {% with connected_total=budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'insales'|filter_connected:True|sum_amount %}
+                                {{ connected_total|intcomma }}
+                            {% endwith %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    <tbody id="insales_connected_{{ dr.id }}" class="hidden">
+                        {% for account_code in account_codes %}
+                        {% for item in budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'insales' %}
+                        {% if item.connected_number %}
+                        <tr class="detail-row">
+                            <td class="text-left">{{ item.item_name }}</td>
+                            {% for other_account_code in account_codes %}
+                            <td class="text-right">
+                                {% if other_account_code == account_code %}
+                                    {{ item.amount|intcomma }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+
+                    <!-- 工事金入金（未連結） -->
+                    <tr class="accordion-header" data-target="insales_unconnected_{{ dr.id }}">
+                        <td class="text-left">工事金入金（未連結）</td>
+                        {% for account_code in account_codes %}
+                        <td class="text-right">
+                            {% with unconnected_total=budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'insales'|filter_connected:False|sum_amount %}
+                                {{ unconnected_total|intcomma }}
+                            {% endwith %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    <tbody id="insales_unconnected_{{ dr.id }}" class="hidden">
+                        {% for account_code in account_codes %}
+                        {% for item in budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'insales' %}
+                        {% if not item.connected_number %}
+                        <tr class="detail-row">
+                            <td class="text-left">{{ item.item_name }}</td>
+                            {% for other_account_code in account_codes %}
+                            <td class="text-right">
+                                {% if other_account_code == account_code %}
+                                    {{ item.amount|intcomma }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+
+                    <!-- その他入金（連結済） -->
+                    <tr class="accordion-header" data-target="inregular_connected_{{ dr.id }}">
+                        <td class="text-left">その他入金（連結済）</td>
+                        {% for account_code in account_codes %}
+                        <td class="text-right">
+                            {% with connected_total=budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'inregular'|filter_connected:True|sum_amount %}
+                                {{ connected_total|intcomma }}
+                            {% endwith }}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    <tbody id="inregular_connected_{{ dr.id }}" class="hidden">
+                        {% for account_code in account_codes %}
+                        {% for item in budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'inregular' %}
+                        {% if item.connected_number %}
+                        <tr class="detail-row">
+                            <td class="text-left">{{ item.item_name }}</td>
+                            {% for other_account_code in account_codes %}
+                            <td class="text-right">
+                                {% if other_account_code == account_code %}
+                                    {{ item.amount|intcomma }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+
+                    <!-- その他入金（未連結） -->
+                    <tr class="accordion-header" data-target="inregular_unconnected_{{ dr.id }}">
+                        <td class="text-left">その他入金（未連結）</td>
+                        {% for account_code in account_codes %}
+                        <td class="text-right">
+                            {% with unconnected_total=budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'inregular'|filter_connected:False|sum_amount %}
+                                {{ unconnected_total|intcomma }}
+                            {% endwith %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    <tbody id="inregular_unconnected_{{ dr.id }}" class="hidden">
+                        {% for account_code in account_codes %}
+                        {% for item in budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'inregular' %}
+                        {% if not item.connected_number %}
+                        <tr class="detail-row">
+                            <td class="text-left">{{ item.item_name }}</td>
+                            {% for other_account_code in account_codes %}
+                            <td class="text-right">
+                                {% if other_account_code == account_code %}
+                                    {{ item.amount|intcomma }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </tbody>
+
+                <!-- 支出 -->
+                <tr class="accordion-header" data-target="expense_{{ dr.id }}">
+                    <td class="text-left">支出</td>
+                    {% for account_code in account_codes %}
+                    <td class="text-right">
+                        {{ budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'total_expense'|intcomma }}
+                    </td>
+                    {% endfor %}
+                </tr>
+                <tbody id="expense_{{ dr.id }}" class="hidden">
+                    <!-- 自動引落（連結済） -->
+                    <tr class="accordion-header" data-target="auto_connected_{{ dr.id }}">
+                        <td class="text-left">自動引落（連結済）</td>
+                        {% for account_code in account_codes %}
+                        <td class="text-right">
+                            {% with connected_total=budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'auto'|filter_connected:True|sum_amount %}
+                                {{ connected_total|intcomma }}
+                            {% endwith %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    <tbody id="auto_connected_{{ dr.id }}" class="hidden">
+                        {% for account_code in account_codes %}
+                        {% for item in budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'auto' %}
+                        {% if item.connected_number %}
+                        <tr class="detail-row">
+                            <td class="text-left">{{ item.item_name }}</td>
+                            {% for other_account_code in account_codes %}
+                            <td class="text-right">
+                                {% if other_account_code == account_code %}
+                                    {{ item.amount|intcomma }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+
+                    <!-- 自動引落（未連結） -->
+                    <tr class="accordion-header" data-target="auto_unconnected_{{ dr.id }}">
+                        <td class="text-left">自動引落（未連結）</td>
+                        {% for account_code in account_codes %}
+                        <td class="text-right">
+                            {% with unconnected_total=budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'auto'|filter_connected:False|sum_amount %}
+                                {{ unconnected_total|intcomma }}
+                            {% endwith %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    <tbody id="auto_unconnected_{{ dr.id }}" class="hidden">
+                        {% for account_code in account_codes %}
+                        {% for item in budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'auto' %}
+                        {% if not item.connected_number %}
+                        <tr class="detail-row">
+                            <td class="text-left">{{ item.item_name }}</td>
+                            {% for other_account_code in account_codes %}
+                            <td class="text-right">
+                                {% if other_account_code == account_code %}
+                                    {{ item.amount|intcomma }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+
+                    <!-- 個別支払（連結済） -->
+                    <tr class="accordion-header" data-target="individual_connected_{{ dr.id }}">
+                        <td class="text-left">個別支払（連結済）</td>
+                        {% for account_code in account_codes %}
+                        <td class="text-right">
+                            {% with connected_total=budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'individual'|filter_connected:True|sum_amount %}
+                                {{ connected_total|intcomma }}
+                            {% endwith %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    <tbody id="individual_connected_{{ dr.id }}" class="hidden">
+                        {% for account_code in account_codes %}
+                        {% for item in budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'individual' %}
+                        {% if item.connected_number %}
+                        <tr class="detail-row">
+                            <td class="text-left">{{ item.item_name }}</td>
+                            {% for other_account_code in account_codes %}
+                            <td class="text-right">
+                                {% if other_account_code == account_code %}
+                                    {{ item.amount|intcomma }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+
+                    <!-- 個別支払（未連結） -->
+                    <tr class="accordion-header" data-target="individual_unconnected_{{ dr.id }}">
+                        <td class="text-left">個別支払（未連結）</td>
+                        {% for account_code in account_codes %}
+                        <td class="text-right">
+                            {% with unconnected_total=budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'individual'|filter_connected:False|sum_amount %}
+                                {{ unconnected_total|intcomma }}
+                            {% endwith %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    <tbody id="individual_unconnected_{{ dr.id }}" class="hidden">
+                        {% for account_code in account_codes %}
+                        {% for item in budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'individual' %}
+                        {% if not item.connected_number %}
+                        <tr class="detail-row">
+                            <td class="text-left">{{ item.item_name }}</td>
+                            {% for other_account_code in account_codes %}
+                            <td class="text-right">
+                                {% if other_account_code == account_code %}
+                                    {{ item.amount|intcomma }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </tbody>
+
+                <!-- 振替 -->
+                <tr class="accordion-header" data-target="transfer_{{ dr.id }}">
+                    <td class="text-left">振替</td>
+                    {% for account_code in account_codes %}
+                    <td class="text-right">
+                        {{ budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'total_fundtrans'|intcomma }}
+                    </td>
+                    {% endfor %}
+                </tr>
+                <tbody id="transfer_{{ dr.id }}" class="hidden">
+                    <!-- 振替（連結済） -->
+                    <tr class="accordion-header" data-target="fundtrans_connected_{{ dr.id }}">
+                        <td class="text-left">振替（連結済）</td>
+                        {% for account_code in account_codes %}
+                        <td class="text-right">
+                            {% with connected_total=budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'fundtrans'|filter_connected:True|sum_amount %}
+                                {{ connected_total|intcomma }}
+                            {% endwith %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    <tbody id="fundtrans_connected_{{ dr.id }}" class="hidden">
+                        {% for account_code in account_codes %}
+                        {% for item in budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'fundtrans' %}
+                        {% if item.connected_number %}
+                        <tr class="detail-row">
+                            <td class="text-left">{{ item.item_name }}</td>
+                            {% for other_account_code in account_codes %}
+                            <td class="text-right">
+                                {% if other_account_code == account_code %}
+                                    {{ item.amount|intcomma }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+
+                    <!-- 振替（未連結） -->
+                    <tr class="accordion-header" data-target="fundtrans_unconnected_{{ dr.id }}">
+                        <td class="text-left">振替（未連結）</td>
+                        {% for account_code in account_codes %}
+                        <td class="text-right">
+                            {% with unconnected_total=budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'fundtrans'|filter_connected:False|sum_amount %}
+                                {{ unconnected_total|intcomma }}
+                            {% endwith %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    <tbody id="fundtrans_unconnected_{{ dr.id }}" class="hidden">
+                        {% for account_code in account_codes %}
+                        {% for item in budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'fundtrans' %}
+                        {% if not item.connected_number %}
+                        <tr class="detail-row">
+                            <td class="text-left">{{ item.item_name }}</td>
+                            {% for other_account_code in account_codes %}
+                            <td class="text-right">
+                                {% if other_account_code == account_code %}
+                                    {{ item.amount|intcomma }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </tbody>
+
+                <!-- 残高見込 -->
+                <tr style="background-color:#ffffcc;">
+                    <td class="text-left">残高見込</td>
+                    {% for account_code in account_codes %}
+                    <td class="text-right">
+                        {{ budget_data|get_item:dr|get_item:'banks'|get_item:account_code.bank_code|get_item:'new_balance'|intcomma }}
+                    </td>
+                    {% endfor %}
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+.accordion-header {
+    cursor: pointer;
+    background-color: #e1e1e1;
+    font-weight: bold;
+    padding: 8px;
+    margin-top: 1em;
+    border-radius: 4px;
+}
+.accordion-header:hover {
+    background-color: #ccc;
+}
+.accordion-icon {
+    float: right;
+    margin-right: 10px;
+}
+.hidden {
+    display: none;
+}
+.detail-row {
+    background-color: #f9f9f9;
+}
+.detail-row td {
+    padding: 4px;
+}
+.text-right {
+    text-align: right;
+}
+.text-left {
+    text-align: left;
+}
+</style>
+
+<script>
+document.querySelectorAll('.accordion-header').forEach(header => {
+    header.addEventListener('click', function() {
+        const target = this.getAttribute('data-target');
+        const content = document.getElementById(target);
+        if (content) {
+            content.classList.toggle('hidden');
+            const icon = this.querySelector('.accordion-icon');
+            icon.textContent = icon.textContent === '▼' ? '▲' : '▼';
+        }
+    });
+});
+
+function openAllDetails() {
+    document.querySelectorAll('.hidden').forEach(content => {
+        content.classList.remove('hidden');
+    });
+    document.querySelectorAll('.accordion-icon').forEach(icon => {
+        icon.textContent = '▲';
+    });
+}
+
+function closeAllDetails() {
+    document.querySelectorAll('.hidden').forEach(content => {
+        content.classList.add('hidden');
+    });
+    document.querySelectorAll('.accordion-icon').forEach(icon => {
+        icon.textContent = '▼';
+    });
+}
+</script>
+{% endblock %} 
