@@ -430,6 +430,22 @@ def connect_connectbank(request):
     return JsonResponse({'success': False}, status=400)
 
 
+@login_required
+@csrf_exempt
+def toggle_confirm_status(request, item_id):
+    if request.method == 'POST':
+        try:
+            budget_item = Budget.objects.get(pk=item_id)
+            budget_item.confirm = not budget_item.confirm
+            budget_item.save()
+            return JsonResponse({'success': True, 'new_status': budget_item.confirm})
+        except Budget.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Budget item not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+    return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+
+
 @csrf_exempt
 def delete_connectbank(request):
     """

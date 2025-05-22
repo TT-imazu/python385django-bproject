@@ -5,7 +5,7 @@ from .views import (
     importbank, sortbank, generatebudget,
     download_budget, upload_basebudget, upload_success,
     connectbank_1to1, connect_connectbank_1to1,
-    multibank, delete_budget_item
+    multibank, delete_budget_item, toggle_confirm_status
 )
 
 urlpatterns = [
@@ -26,4 +26,5 @@ urlpatterns = [
     path('connectbank_1to1/', connectbank_1to1, name='connectbank_1to1'),
     path('connectbank_1to1/connect/', connect_connectbank_1to1, name='connect_connectbank_1to1'),
     path('delete_budget_item/', delete_budget_item, name='delete_budget_item'),
+    path('budget/toggle_confirm/<int:item_id>/', toggle_confirm_status, name='toggle_confirm_status'),
 ]

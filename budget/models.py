@@ -174,6 +174,7 @@ class Budget(models.Model):
     # --- 追加: 並べ替え用フィールド ---
     sort_no1 = models.PositiveSmallIntegerField(default=0, verbose_name="並べ替え1（日付）")
     sort_no2 = models.PositiveSmallIntegerField(default=0, verbose_name="並べ替え2（自由）")
+    confirm = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.daterange} - {self.item_name} ({self.itemtype})"

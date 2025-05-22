@@ -127,7 +127,8 @@
     table col.number-col { width: 5%; } /* 番号 */
     table col.ammount-col { width: 30%; } /* 実際 */
     table col.name-col { width: 45%; } /* 相手先は自動調整 */
-    table col.connect-col { width: 15%; } /* 連結 */
+    table col.connect-col { width: 10%; } /* 連結 */
+    table col.action-col { width: 10%; } /* 確認ボタン */
 
 
     </style>
@@ -210,7 +211,7 @@
             <table>
                 <!-- 入金 -->
                 <tr class="highlight no-border">
-                    <th colspan="5" class="text-left">= 入 金 =</th>
+                    <th colspan="6" class="text-left">= 入 金 =</th>
                 </tr>
                 <colgroup>
                     <col class="name-col">
@@ -218,6 +219,7 @@
                     <col class="number-col">
                     <col class="ammount-col">
                     <col class="connect-col">
+                    <col class="action-col"> {/* New column for confirm button */}
                 </colgroup>
                 <tr class="blue2-highlight">
                     <th>相手先</th>
@@ -225,6 +227,7 @@
                     <th>番号</th>
                     <th>見込/実際</th>
                     <th>連結</th>
+                    <th>確認</th> {/* New header for confirm button */}
                 </tr>
 
                 <!-- 未連携(connected_numberなし)データ -->
@@ -239,17 +242,22 @@
                         <td class="text-right">
                             <input type="number" name="sort_no2_{{ item.id }}" value="{{ item.sort_no2 }}" style="width:50px;">
                         </td>
-                        <td class="text-right">
+                        <td class="text-right" style="color: {% if item.confirm %}black{% else %}red{% endif %};">
                             <input type="number" name="amount_{{ item.id }}" value="{{ item.amount }}" class="text-right" style="width:150px;">
                         </td>
                         <td> </td>
+                        <td>
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">
+                                {% if item.confirm %}Unconfirm{% else %}Confirm{% endif %}
+                            </button>
+                        </td>
                     </tr>
                     {% endif %}
                     {% endfor %}
                 </tbody>
 
                 <tr class="accordion-header"  onclick="toggleAccordion('connected_insales_{{ dr.id }}')">
-                    <td colspan="5" class="text-left" >
+                    <td colspan="6" class="text-left" > {/* Adjusted colspan */}
                         連携済データ(工事金入金)
                         <span class="accordion-icon">▼</span>
                     </td>
@@ -261,9 +269,16 @@
                         <td class="text-left">{{ item.item_name }}</td>
                         <td>{{ item.sort_no1 }}</td>
                         <td>{{ item.sort_no2 }}</td>
-                        <td class="text-right">{{ item.amount }}</td>
+                        <td class="text-right" style="color: {% if item.confirm %}black{% else %}red{% endif %};">{{ item.amount }}</td>
                         <td>
                             <button class="unlink-button" type="button" onclick="unlinkConnection('{{ item.connected_number }}')">解除</button>
+                        </td>
+                        <td> {/* Empty cell for confirm button column in connected data */}
+                            {% if item.confirm %}
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">Unconfirm</button>
+                            {% else %}
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">Confirm</button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endif %}
@@ -271,12 +286,12 @@
                 </tbody>
                 <tr class="highlight">
                     <td>=工事金入金合計=</td>
-                    <td colspan="4" class="text-right">{{ data.insales_total }}</td>
+                    <td colspan="5" class="text-right">{{ data.insales_total }}</td> {/* Adjusted colspan */}
                 </tr>
 
                 <!-- 入金 -->
                 <tr class="highlight no-border">
-                    <th colspan="5" class="text-left">= その他入金 =</th>
+                    <th colspan="6" class="text-left">= その他入金 =</th>
                 </tr>
                 <colgroup>
                     <col class="name-col">
@@ -284,6 +299,7 @@
                     <col class="number-col">
                     <col class="ammount-col">
                     <col class="connect-col">
+                    <col class="action-col"> {/* New column for confirm button */}
                 </colgroup>
                 <tr class="blue2-highlight">
                     <th>相手先</th>
@@ -291,6 +307,7 @@
                     <th>番号</th>
                     <th>見込/実際</th>
                     <th>連結</th>
+                    <th>確認</th> {/* New header for confirm button */}
                 </tr>
 
                 <!-- 未連携(connected_numberなし)データ -->
@@ -305,17 +322,22 @@
                         <td class="text-right">
                             <input type="number" name="sort_no2_{{ item.id }}" value="{{ item.sort_no2 }}" style="width:50px;">
                         </td>
-                        <td class="text-right">
+                        <td class="text-right" style="color: {% if item.confirm %}black{% else %}red{% endif %};">
                             <input type="number" name="amount_{{ item.id }}" value="{{ item.amount }}" class="text-right" style="width:150px;">
                         </td>
                         <td> </td>
+                        <td>
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">
+                                {% if item.confirm %}Unconfirm{% else %}Confirm{% endif %}
+                            </button>
+                        </td>
                     </tr>
                     {% endif %}
                     {% endfor %}
                 </tbody>
 
                 <tr class="accordion-header"  onclick="toggleAccordion('connected_inregular_{{ dr.id }}')">
-                    <td colspan="5" class="text-left" >
+                    <td colspan="6" class="text-left" > {/* Adjusted colspan */}
                         連携済データ(その他入金)
                         <span class="accordion-icon">▼</span>
                     </td>
@@ -327,9 +349,16 @@
                         <td class="text-left">{{ item.item_name }}</td>
                         <td>{{ item.sort_no1 }}</td>
                         <td>{{ item.sort_no2 }}</td>
-                        <td class="text-right">{{ item.amount }}</td>
+                        <td class="text-right" style="color: {% if item.confirm %}black{% else %}red{% endif %};">{{ item.amount }}</td>
                         <td>
                             <button class="unlink-button" type="button" onclick="unlinkConnection('{{ item.connected_number }}')">解除</button>
+                        </td>
+                        <td> {/* Empty cell for confirm button column in connected data */}
+                            {% if item.confirm %}
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">Unconfirm</button>
+                            {% else %}
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">Confirm</button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endif %}
@@ -337,12 +366,12 @@
                 </tbody>
                 <tr class="highlight">
                     <td>=その他入金合計=</td>
-                    <td colspan="4" class="text-right">{{ data.inregular_total }}</td>
+                    <td colspan="5" class="text-right">{{ data.inregular_total }}</td> {/* Adjusted colspan */}
                 </tr>
 
                 <tr class="blue-highlight" style="background-color:#b3e5fc;">
                     <td>【入金合計】</td>
-                    <td colspan="4" class="text-right">{{ data.total_income }}</td>
+                    <td colspan="5" class="text-right">{{ data.total_income }}</td> {/* Adjusted colspan */}
                 </tr>
 
 
@@ -351,12 +380,12 @@
 
                 <!-- 出金 (自動引落, 個別支払) -->
                 <tr class="blue-highlight">
-                    <th colspan="5" class="text-left">= 出 金 =</th>
+                    <th colspan="6" class="text-left">= 出 金 =</th>
                 </tr>
 
                 <!-- 自動引落 -->
                 <tr class="no-border">
-                    <th colspan="5" class="text-left">自動引落</th>
+                    <th colspan="6" class="text-left">自動引落</th>
                 </tr>
                 <colgroup>
                     <col class="name-col">
@@ -364,6 +393,7 @@
                     <col class="number-col">
                     <col class="ammount-col">
                     <col class="connect-col">
+                    <col class="action-col"> {/* New column for confirm button */}
                 </colgroup>
                 <tr class="blue2-highlight">
                     <th>相手先</th>
@@ -371,6 +401,7 @@
                     <th>番号</th>
                     <th>見込/実際</th>
                     <th>連結</th>
+                    <th>確認</th> {/* New header for confirm button */}
                 </tr>
                 <tbody id="auto_items_{{ dr.id }}  auto">
                     {% for item in data.items.自動引落 %}
@@ -383,16 +414,21 @@
                         <td class="text-right">
                             <input type="number" name="sort_no2_{{ item.id }}" value="{{ item.sort_no2 }}" style="width:50px;">
                         </td>
-                        <td class="text-right">
+                        <td class="text-right" style="color: {% if item.confirm %}black{% else %}red{% endif %};">
                             <input type="number" name="amount_{{ item.id }}" value="{{ item.amount }}" class="text-right" style="width:150px;">
                         </td>
                         <td> </td>
+                        <td>
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">
+                                {% if item.confirm %}Unconfirm{% else %}Confirm{% endif %}
+                            </button>
+                        </td>
                     </tr>
                     {% endif %}
                     {% endfor %}
                 </tbody>
                 <tr class="accordion-header" onclick="toggleAccordion('connected_auto_{{ dr.id }}')">
-                    <td colspan="5" class="text-left">
+                    <td colspan="6" class="text-left"> {/* Adjusted colspan */}
                         連携済データ(自動引落)
                         <span class="accordion-icon">▼</span>
                     </td>
@@ -404,9 +440,16 @@
                         <td class="text-left">{{ item.item_name }}</td>
                         <td>{{ item.sort_no1 }}</td>
                         <td>{{ item.sort_no2 }}</td>
-                        <td class="text-right">{{ item.amount }}</td>
+                        <td class="text-right" style="color: {% if item.confirm %}black{% else %}red{% endif %};">{{ item.amount }}</td>
                         <td>
                             <button class="unlink-button" type="button" onclick="unlinkConnection('{{ item.connected_number }}')">解除</button>
+                        </td>
+                        <td> {/* Empty cell for confirm button column in connected data */}
+                            {% if item.confirm %}
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">Unconfirm</button>
+                            {% else %}
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">Confirm</button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endif %}
@@ -414,12 +457,12 @@
                 </tbody>
                 <tr class="blue2-highlight">
                     <td>自動引落合計</td>
-                    <td colspan="4" class="text-right">{{ data.expense_auto_total }}</td>
+                    <td colspan="5" class="text-right">{{ data.expense_auto_total }}</td> {/* Adjusted colspan */}
                 </tr>
 
                 <!-- 個別支払 -->
                 <tr class="no-border">
-                    <th colspan="5" class="text-left">個別支払</th>
+                    <th colspan="6" class="text-left">個別支払</th>
                 </tr>
                 <colgroup>
                     <col class="name-col">
@@ -427,6 +470,7 @@
                     <col class="number-col">
                     <col class="ammount-col">
                     <col class="connect-col">
+                    <col class="action-col"> {/* New column for confirm button */}
                 </colgroup>
                 <tr class="blue2-highlight">
                     <th>相手先</th>
@@ -434,6 +478,7 @@
                     <th>番号</th>
                     <th>見込/実際</th>
                     <th>連結</th>
+                    <th>確認</th> {/* New header for confirm button */}
                 </tr>
                 <tbody id="individual_items_{{ dr.id }} individual">
 
@@ -447,16 +492,21 @@
                         <td class="text-right">
                             <input type="number" name="sort_no2_{{ item.id }}" value="{{ item.sort_no2 }}" style="width:50px;">
                         </td>
-                        <td class="text-right">
+                        <td class="text-right" style="color: {% if item.confirm %}black{% else %}red{% endif %};">
                             <input type="number" name="amount_{{ item.id }}" value="{{ item.amount }}" class="text-right" style="width:150px;">
                         </td>
                         <td> </td>
+                        <td>
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">
+                                {% if item.confirm %}Unconfirm{% else %}Confirm{% endif %}
+                            </button>
+                        </td>
                     </tr>
                     {% endif %}
                     {% endfor %}
                 </tbody>
                 <tr class="accordion-header" onclick="toggleAccordion('connected_individual_{{ dr.id }}')">
-                    <td colspan="5" class="text-left">
+                    <td colspan="6" class="text-left"> {/* Adjusted colspan */}
                         連携済データ(個別支払)
                         <span class="accordion-icon">▼</span>
                     </td>
@@ -468,9 +518,16 @@
                         <td class="text-left">{{ item.item_name }}</td>
                         <td>{{ item.sort_no1 }}</td>
                         <td>{{ item.sort_no2 }}</td>
-                        <td class="text-right">{{ item.amount }}</td>
+                        <td class="text-right" style="color: {% if item.confirm %}black{% else %}red{% endif %};">{{ item.amount }}</td>
                         <td>
                                 <button class="unlink-button" type="button" onclick="unlinkConnection('{{ item.connected_number }}')">解除</button>
+                        </td>
+                        <td> {/* Empty cell for confirm button column in connected data */}
+                            {% if item.confirm %}
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">Unconfirm</button>
+                            {% else %}
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">Confirm</button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endif %}
@@ -479,7 +536,7 @@
 
                 <tr class="blue-highlight">
                     <td>=出金合計=</td>
-                    <td colspan="4" class="text-right">{{ data.total_expense }}</td>
+                    <td colspan="5" class="text-right">{{ data.total_expense }}</td> {/* Adjusted colspan */}
                 </tr>
 
 
@@ -487,7 +544,7 @@
 
                 <!-- 個別支払 -->
                 <tr class="no-border">
-                    <th colspan="5" class="text-left">預金振替</th>
+                    <th colspan="6" class="text-left">預金振替</th>
                 </tr>
                 <colgroup>
                     <col class="name-col">
@@ -495,6 +552,7 @@
                     <col class="number-col">
                     <col class="ammount-col">
                     <col class="connect-col">
+                    <col class="action-col"> {/* New column for confirm button */}
                 </colgroup>
                 <tr class="blue2-highlight">
                     <th>相手先</th>
@@ -502,6 +560,7 @@
                     <th>番号</th>
                     <th>見込/実際</th>
                     <th>連結</th>
+                    <th>確認</th> {/* New header for confirm button */}
                 </tr>
                 <tbody id="fundtrans_items_{{ dr.id }} fundtrans">
                     {% for item in data.items.預金振替 %}
@@ -514,16 +573,21 @@
                         <td class="text-right">
                             <input type="number" name="sort_no2_{{ item.id }}" value="{{ item.sort_no2 }}" style="width:50px;">
                         </td>
-                        <td class="text-right">
+                        <td class="text-right" style="color: {% if item.confirm %}black{% else %}red{% endif %};">
                             <input type="number" name="amount_{{ item.id }}" value="{{ item.amount }}" class="text-right" style="width:150px;">
                         </td>
                         <td> </td>
+                        <td>
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">
+                                {% if item.confirm %}Unconfirm{% else %}Confirm{% endif %}
+                            </button>
+                        </td>
                     </tr>
                     {% endif %}
                     {% endfor %}
                 </tbody>
                 <tr class="accordion-header" onclick="toggleAccordion('connected_fundtrans_{{ dr.id }}')">
-                    <td colspan="5" class="text-left">
+                    <td colspan="6" class="text-left"> {/* Adjusted colspan */}
                         連携済データ(預金振替)
                         <span class="accordion-icon">▼</span>
                     </td>
@@ -535,9 +599,16 @@
                         <td class="text-left">{{ item.item_name }}</td>
                         <td>{{ item.sort_no1 }}</td>
                         <td>{{ item.sort_no2 }}</td>
-                        <td class="text-right">{{ item.amount }}</td>
+                        <td class="text-right" style="color: {% if item.confirm %}black{% else %}red{% endif %};">{{ item.amount }}</td>
                         <td>
                                 <button class="unlink-button" type="button" onclick="unlinkConnection('{{ item.connected_number }}')">解除</button>
+                        </td>
+                        <td> {/* Empty cell for confirm button column in connected data */}
+                            {% if item.confirm %}
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">Unconfirm</button>
+                            {% else %}
+                            <button type="button" class="confirm-button" data-item-id="{{ item.id }}">Confirm</button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endif %}
@@ -546,7 +617,7 @@
 
                 <tr class="blue-highlight">
                     <td colspan="2">{{ dr.name }} 残高見込</td>
-                    <td colspan="3" class="text-right">{{ data.new_balance }}</td>
+                    <td colspan="4" class="text-right">{{ data.new_balance }}</td> {/* Adjusted colspan */}
                 </tr>
             </table>
 
@@ -980,8 +1051,30 @@ document.addEventListener("DOMContentLoaded", function() {
     // アコーディオンヘッダーのクリックイベントを設定
     document.querySelectorAll('.accordion-header').forEach(header => {
         header.addEventListener('click', function () {
-            const tbodyId = this.getAttribute('data-target');
-            toggleAccordion(tbodyId);
+            const tbodyId = this.getAttribute('data-target'); // Assuming data-target is set on header
+            if (tbodyId) { // Ensure tbodyId is not null
+                toggleAccordion(tbodyId);
+            } else {
+                // Fallback for headers that might not have data-target, but use onclick directly
+                // This part tries to extract tbodyId from the onclick attribute string.
+                // It's a bit fragile and depends on the exact format of the onclick attribute.
+                const onclickAttr = this.getAttribute('onclick');
+                if (onclickAttr && onclickAttr.includes("toggleAccordion('")) {
+                    const start = onclickAttr.indexOf("toggleAccordion('") + "toggleAccordion('".length;
+                    const end = onclickAttr.indexOf("')", start);
+                    if (end > start) {
+                        const idFromOnclick = onclickAttr.substring(start, end);
+                        toggleAccordion(idFromOnclick);
+                    }
+                }
+            }
+        });
+    });
+
+    // Confirm button event listeners
+    document.querySelectorAll('.confirm-button').forEach(button => {
+        button.addEventListener('click', function() {
+            toggleConfirm(this);
         });
     });
 });
@@ -996,7 +1089,56 @@ function convertItemtype(itemtype) {
         "individual": "出金",
         "fundtrans": "振替",
     };
-    return mapping.get(itemtype, "入金"); // デフォルトは「入金」
+    // Ensure mapping.get exists or provide a fallback if it's not a Map
+    if (typeof mapping.get === 'function') {
+        return mapping.get(itemtype) || "入金"; // Default for Map
+    } else {
+        return mapping[itemtype] || "入金"; // Default for Object
+    }
+}
+
+// Toggle confirm status for a budget item
+function toggleConfirm(buttonElement) {
+    const itemId = buttonElement.dataset.itemId;
+    const url = `/budget/toggle_confirm/${itemId}/`; // Make sure this URL is correct as per your urls.py
+    const csrfToken = getCookie('csrftoken');
+
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        // Body can be empty or an empty JSON object if your view expects it
+        // body: JSON.stringify({}) 
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            buttonElement.textContent = data.new_status ? 'Unconfirm' : 'Confirm';
+            
+            let row = buttonElement.closest('tr');
+            if (row) {
+                // The amount cell is assumed to be the 3rd cell from the end of the row (button is last, empty cell before it, then amount)
+                // For rows with input fields (unconnected items), the input is inside the td.
+                // For rows with plain text (connected items), the text is directly in the td.
+                let amountCell = row.cells[row.cells.length - 3]; 
+                if (amountCell) {
+                    amountCell.style.color = data.new_status ? 'black' : 'red';
+                    // If the amount is an input field, you might want to style the input's text too,
+                    // but the requirement was for the cell's text color.
+                    // If there's an input inside, its color won't be affected by td.style.color directly.
+                    // However, the provided HTML already has style on the TD for the color.
+                }
+            }
+        } else {
+            alert('Error updating status: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        alert('Error updating status. Please check the console for details.');
+    });
 }
 
 </script>
